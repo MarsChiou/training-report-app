@@ -34,6 +34,7 @@ export default function DailyReportForm() {
     };
 
     try {
+      const SUBMIT_API_URL = import.meta.env.VITE_GAS_URL;
       const response = await fetch(SUBMIT_API_URL, {
           method: "POST",
           body: JSON.stringify(payload),
