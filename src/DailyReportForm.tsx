@@ -33,7 +33,7 @@ export default function DailyReportForm() {
     };
 
     try {
-      const response = await fetch('https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec', {
+      const response = await fetch('https://script.google.com/macros/s/AKfycbzP-zr90lA0HPqUQiemnZ7DvbBohCuJah8XPTjC6LJJgBvWQvvCTHKkTMrxQ6wPdGd2GA/exec', {
         method: 'POST',
         body: JSON.stringify(payload),
         headers: {
