@@ -10,7 +10,8 @@ export default function DailyReportForm() {
   const [submitted, setSubmitted] = useState(false);
   const [nameOptions, setNameOptions] = useState<{ label: string; value: string }[]>([]);
 
-  const NAME_API_URL = "https://script.google.com/macros/s/AKfycbzP-zr90lA0HPqUQiemnZ7DvbBohCuJah8XPTjC6LJJgBvWQvvCTHKkTMrxQ6wPdGd2GA/exec?action=names";
+  const NAME_API_URL = `${import.meta.env.VITE_GAS_URL}?action=names`;
+
 
   useEffect(() => {
     fetch(NAME_API_URL)
@@ -33,13 +34,14 @@ export default function DailyReportForm() {
     };
 
     try {
-      const response = await fetch('https://script.google.com/macros/s/AKfycbzP-zr90lA0HPqUQiemnZ7DvbBohCuJah8XPTjC6LJJgBvWQvvCTHKkTMrxQ6wPdGd2GA/exec', {
-        method: 'POST',
-        body: JSON.stringify(payload),
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
+      const response = await fetch(SUBMIT_API_URL, {
+          method: "POST",
+          body: JSON.stringify(payload),
+          headers: {
+          "Content-Type": "application/json",
+         },
+        });
+
 
       if (response.ok) {
         setSubmitted(true);
