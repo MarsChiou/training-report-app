@@ -2,6 +2,14 @@ import { useEffect, useState } from 'react';
 import { FaDumbbell, FaBookOpen, FaCheckCircle } from 'react-icons/fa';
 import Select from 'react-select';
 
+function getTaiwanTodayDateString() {
+  const now = new Date(); 
+  const taiwanOffset = 8 * 60;
+  const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+  const taiwanTime = new Date(utc + taiwanOffset * 60000);
+  return taiwanTime.toISOString().split("T")[0];
+}
+
 export default function DailyReportForm() {
   const [userId, setUserId] = useState("");
   const [trainingDone, setTrainingDone] = useState(false);
@@ -10,8 +18,17 @@ export default function DailyReportForm() {
   const [submitted, setSubmitted] = useState(false);
   const [nameOptions, setNameOptions] = useState<{ label: string; value: string }[]>([]);
 
-  const NAME_API_URL = `${import.meta.env.VITE_GAS_URL}?action=names`;
+  // 日期與營隊起始日
+  const [selectedDate, setSelectedDate] = useState(getTaiwanTodayDateString());
+  const CAMP_START_DATE = new Date("2025-02-17");
+  const calculateDayNumber = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return Math.floor((date.getTime() - CAMP_START_DATE.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+  };
+  const dayNumber = calculateDayNumber(selectedDate);
 
+  const NAME_API_URL = `${import.meta.env.VITE_GAS_URL}?action=names`;
+  const POST_API_URL = import.meta.env.VITE_REPORT_API_URL;
 
   useEffect(() => {
     fetch(NAME_API_URL)
@@ -27,30 +44,30 @@ export default function DailyReportForm() {
 
   const handleSubmit = async () => {
     setSubmitting(true);
-    const payload = {
+
+    const data = {
       userId,
       trainingDone,
       diaryDone,
+      date: selectedDate,
+      dayNumber: dayNumber,
     };
 
     try {
-      const SUBMIT_API_URL = import.meta.env.VITE_GAS_URL;
-      const response = await fetch(SUBMIT_API_URL, {
-          method: "POST",
-          body: JSON.stringify(payload),
-          headers: {
+      const response = await fetch(POST_API_URL, {
+        method: "POST",
+        headers: {
           "Content-Type": "application/json",
-         },
-        });
+        },
+        body: JSON.stringify(data),
+      });
 
-
-      if (response.ok) {
-        setSubmitted(true);
-      } else {
-        alert('提交失敗，請稍後再試');
-      }
-    } catch (error) {
-      alert('發生錯誤，請稍後再試');
+      const result = await response.text();
+      setSubmitted(true);
+      alert(result);
+    } catch (err) {
+      console.error("送出錯誤", err);
+      alert("送出失敗：" + (err instanceof Error ? err.message : "未知錯誤"));
     } finally {
       setSubmitting(false);
     }
@@ -88,6 +105,17 @@ export default function DailyReportForm() {
             placeholder="請輸入或選擇姓名"
             className="text-sm"
           />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">選擇回報日期</label>
+          <input
+            type="date"
+            className="w-full border border-gray-300 rounded-lg px-3 py-2"
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
+          />
+          <p className="text-xs text-gray-500 mt-1">營隊第 {dayNumber} 天</p>
         </div>
 
         <div className="flex items-center space-x-3">
