@@ -22,8 +22,10 @@ export default function DailyReportForm() {
   const [selectedDate, setSelectedDate] = useState(getTaiwanTodayDateString());
   const CAMP_START_DATE = new Date("2025-02-17");
   const calculateDayNumber = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return Math.floor((date.getTime() - CAMP_START_DATE.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+    const start = new Date(CAMP_START_DATE.toISOString().split("T")[0]); // 去掉時間
+    const target = new Date(dateStr);
+    const diffTime = target.getTime() - start.getTime();
+    return Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
   };
   const dayNumber = calculateDayNumber(selectedDate);
 
