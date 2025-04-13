@@ -23,7 +23,7 @@
 const functions = require("firebase-functions");
 const fetch = require("node-fetch");
 
-// ✅ 抽出 Google Apps Script URL 作為常數（請記得把這裡改成你的實際 Script ID）
+// ✅ 抽出 Google Apps Script URL 作為常數（請記得把這裡改成你的實際 Script ID）Apr10
 const GAS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzcf0YKfJksPgxBbNT-5ElE11Rz13H5D1hsm5dT1k0W8WptQ62HpbYLlqf54ImkNlefKw/exec";
 
 // 建立一個 HTTPS Cloud Function 作為代理

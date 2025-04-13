@@ -1,5 +1,15 @@
 import { useEffect, useState } from 'react';
 import { FaDumbbell, FaBookOpen, FaCheckCircle } from 'react-icons/fa';
+import Select from 'react-select';
+import Header from './components/Header';
+
+function getTaiwanTodayDateString() {
+  const now = new Date();
+  const taiwanOffset = 8 * 60;
+  const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+  const taiwanTime = new Date(utc + taiwanOffset * 60000);
+  return taiwanTime.toISOString().split("T")[0];
+}
 
 export default function DailyReportForm() {
   const [userId, setUserId] = useState("");
@@ -7,17 +17,26 @@ export default function DailyReportForm() {
   const [diaryDone, setDiaryDone] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-  const [nameOptions, setNameOptions] = useState<string[]>([]);
+  const [nameOptions, setNameOptions] = useState<{ label: string; value: string }[]>([]);
 
-  // 🚀 拉取 ID_Map 名單的 API（請替換為你部署的 doGet URL）
-  const NAME_API_URL = "https://script.google.com/macros/s/AKfycbzP-zr90lA0HPqUQiemnZ7DvbBohCuJah8XPTjC6LJJgBvWQvvCTHKkTMrxQ6wPdGd2GA/exec?action=names";
+  const [selectedDate, setSelectedDate] = useState(getTaiwanTodayDateString);
+  const CAMP_START_DATE = new Date("2025-02-17");
+  const calculateDayNumber = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return Math.floor((date.getTime() - CAMP_START_DATE.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+  };
+  const dayNumber = calculateDayNumber(selectedDate);
+
+  const NAME_API_URL = `${import.meta.env.VITE_GAS_URL}?action=names`;
+  const POST_API_URL = import.meta.env.VITE_REPORT_API_URL;
 
   useEffect(() => {
     fetch(NAME_API_URL)
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data)) {
-          setNameOptions(data);
+          const options = data.map((name) => ({ label: name, value: name }));
+          setNameOptions(options);
         }
       })
       .catch((err) => console.error("名單載入失敗：", err));
@@ -25,28 +44,30 @@ export default function DailyReportForm() {
 
   const handleSubmit = async () => {
     setSubmitting(true);
-    const payload = {
+
+    const data = {
       userId,
       trainingDone,
       diaryDone,
+      date: selectedDate,
+      dayNumber: dayNumber,
     };
 
     try {
-      const response = await fetch('https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec', {
-        method: 'POST',
-        body: JSON.stringify(payload),
+      const response = await fetch(POST_API_URL, {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
+        body: JSON.stringify(data),
       });
 
-      if (response.ok) {
-        setSubmitted(true);
-      } else {
-        alert('提交失敗，請稍後再試');
-      }
-    } catch (error) {
-      alert('發生錯誤，請稍後再試');
+      const result = await response.text();
+      setSubmitted(true);
+      alert(result);
+    } catch (err: any) {
+      console.error("送出錯誤", err);
+      alert("送出失敗：" + err.message);
     } finally {
       setSubmitting(false);
     }
@@ -54,42 +75,30 @@ export default function DailyReportForm() {
 
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8 flex flex-col items-center justify-start">
-      {/* Header 區塊：Logo + 營期資訊 */}
-      <div className="max-w-md w-full mb-6 text-center">
-        <div className="flex justify-center mb-4">
-          {/* Placeholder 圖片 */}
-          <img
-            src="https://via.placeholder.com/80"
-            alt="Logo Placeholder"
-            className="w-20 h-20 rounded-full shadow-lg"
-          />
-        </div>
-        <h2 className="text-xl font-bold text-teal-700 leading-snug">
-          Jo i 健康隊
-        </h2>
-        <h3 className="text-lg font-semibold text-gray-700 leading-snug">
-          身體控制挑戰營(上) 第一期
-        </h3>
-        <p className="text-sm text-gray-500">
-          2025/02/17 ~ 2025/04/13
-        </p>
-      </div>
+      <Header />
 
       <div className="max-w-md w-full bg-white shadow-xl rounded-2xl p-6 space-y-6">
         <h1 className="text-2xl font-bold text-center text-teal-600">每日訓練回報表</h1>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700">選擇您的名字</label>
-          <select
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500"
-            value={userId}
-            onChange={(e) => setUserId(e.target.value)}
-          >
-            <option value="">請選擇</option>
-            {nameOptions.map((name) => (
-              <option key={name} value={name}>{name}</option>
-            ))}
-          </select>
+          <label className="block text-sm font-medium text-gray-700 mb-1">選擇您的名字</label>
+          <Select
+            options={nameOptions}
+            onChange={(selected) => setUserId(selected ? selected.value : "")}
+            placeholder="請輸入或選擇姓名"
+            className="text-sm"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">選擇回報日期</label>
+          <input
+            type="date"
+            className="w-full border border-gray-300 rounded-lg px-3 py-2"
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
+          />
+          <p className="text-xs text-gray-500 mt-1">營隊第 {dayNumber} 天</p>
         </div>
 
         <div className="flex items-center space-x-3">
