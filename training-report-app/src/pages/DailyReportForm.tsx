@@ -136,8 +136,14 @@ export default function DailyReportForm() {
           {submitting ? '提交中...' : '提交回報'}
         </button>
 
+      
         {submitted && (
-          <p className="text-green-600 text-center font-semibold mt-4">回報成功，感謝你！💪</p>
+          <div className="flex flex-col items-center justify-center mt-6">
+            <FaCheckCircle className="text-green-500 text-4xl animate-bounce" />
+            <p className="text-green-600 text-center font-semibold mt-2">
+              回報成功，感謝你！💪
+            </p>
+         </div>
         )}
       </div>
     </div>
