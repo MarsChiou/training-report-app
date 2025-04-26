@@ -28,11 +28,11 @@ export default function MovementCard({ data }: { data: MovementData }) {
     >
       <div className="flex justify-between items-center mb-2">
         <h2 className="font-bold text-lg">
-          {data.level}（{data.type === 'Climb' ? '攀岩' : '跑步'}）
+          {data.level}（{data.type}）
         </h2>
         {data.locked && (
           <div className="text-gray-500 text-sm flex items-center">
-            <FaLock className="mr-1" /> 等待學員解鎖
+            <FaLock className="mr-1" /> 等待隊員解鎖
           </div>
         )}
       </div>
@@ -45,7 +45,7 @@ export default function MovementCard({ data }: { data: MovementData }) {
         </ul>
       ) : (
         <div className="bg-gray-200 text-sm text-gray-500 px-3 py-2 rounded-md">
-          此等級尚未解鎖，請稍候更新。
+          還沒有隊員解鎖，快來當第一個吧!
         </div>
       )}
     </div>
