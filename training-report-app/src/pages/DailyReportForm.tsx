@@ -29,7 +29,7 @@ export default function DailyReportForm() {
   };
   const dayNumber = calculateDayNumber(selectedDate);
 
-  const NAME_API_URL = `${import.meta.env.VITE_GAS_URL}`;
+  const NAME_API_URL = `${import.meta.env.VITE_GAS_URL}?action=names`;
   const POST_API_URL = import.meta.env.VITE_REPORT_API_URL;
   const [showToast, setShowToast] = useState(false);
   const [toastVisible, setToastVisible] = useState(false);
