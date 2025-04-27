@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react';
 import { FaUserCircle } from 'react-icons/fa';
+import { Link } from 'react-router-dom'; 
 import Select from 'react-select';
 import Header from './components/Header';
+import { getLevelBackgroundStyle } from '../pages/utils/levelStyle.ts';
+import { progressMovementMap } from '../pages/utils/progressMovementMap';
 
 interface UserProgress {
   nickname: string;
@@ -18,7 +21,7 @@ interface WeekTheme {
   week: number;
 }
 
-const getLevelStyle = (level: string) => {
+/*const getLevelStyle = (level: string) => {
   switch (level) {
     case 'Lv0':
     case 'LV0':
@@ -32,9 +35,9 @@ const getLevelStyle = (level: string) => {
     case 'Lv4':
       return 'bg-purple-100 text-purple-800';
     default:
-      return 'bg-gray-100 text-gray-500';
+      return 'bg-purple-100 text-gray-500';
   }
-};
+};*/
 
 export default function ProgressOverview() {
   const [data, setData] = useState<UserProgress[]>([]);
@@ -97,12 +100,23 @@ export default function ProgressOverview() {
                 {Object.entries(filteredUser.progress).map(([theme, actions], idx) => (
                   <div key={idx} className="mb-2">
                     <p className="font-medium text-teal-600">{theme.replace(/-\d$/, '')}</p>
-                    <div className="flex space-x-2 mt-1">
-                      {Object.entries(actions).map(([action, lv], i) => (
-                        <span key={i} className={`px-2 py-1 rounded-full text-xs ${getLevelStyle(lv)}`}>
-                          {action}: {lv}
-                        </span>
-                      ))}
+                    <div className="flex flex-wrap gap-2 mt-1">
+                      {Object.entries(actions).map(([action, lv], i) => {
+                        const mapped = progressMovementMap.find(
+                          (item) => item.week === (idx + 1) && item.action === action
+                        );
+                        const movementTitle = mapped?.title || '';
+
+                        return (
+                          <Link
+                            to={`/movement?search=${encodeURIComponent(movementTitle)}`}
+                            key={i}
+                            className={`px-2 py-1 rounded-full text-xs ${getLevelBackgroundStyle(lv)} hover:underline hover:text-blue-600 transition min-w-[72px] text-center font-mono`}
+                          >
+                            {action}: {lv}
+                          </Link>
+                        );
+                      })}
                     </div>
                   </div>
                 ))}
@@ -126,10 +140,10 @@ export default function ProgressOverview() {
             </div>
 
             <div className="overflow-x-auto">
-              <table className="min-w-full border text-sm">
+              <table className="min-w-full border text-sm font-mono">
                 <thead>
                   <tr className="bg-gray-100">
-                    <th className="px-2 py-1 border">綽號</th>
+                    <th className="px-2 py-1 border w-24 text-center">綽號</th>
                     {visibleThemes.map((t, i) => (
                       <th key={i} colSpan={3} className="px-2 py-1 border text-center">
                         {t.title.replace(/-\d$/, '')}
@@ -139,7 +153,7 @@ export default function ProgressOverview() {
                   <tr className="bg-gray-50">
                     <th className="border px-2 py-1"></th>
                     {visibleThemes.map((_, i) => [1, 2, 3].map(j => (
-                      <th key={`${i}-${j}`} className="border px-2 py-1 text-center">動作{j}</th>
+                      <th key={`${i}-${j}`} className="border px-2 py-1 text-center w-24 whitespace-normal">動作<br />{j}</th>
                     )))}
                   </tr>
                 </thead>
@@ -157,7 +171,7 @@ export default function ProgressOverview() {
                         return ['動作1', '動作2', '動作3'].map((action, k) => (
                           <td
                             key={`${j}-${k}`}
-                            className={`border px-2 py-1 text-center ${getLevelStyle(actions[action] || '-')}`}
+                            className={`border px-2 py-1 text-center min-h-[48px] align-middle whitespace-normal ${getLevelBackgroundStyle(actions[action] || '-')}`}
                           >
                             {actions[action] || '-'}
                           </td>

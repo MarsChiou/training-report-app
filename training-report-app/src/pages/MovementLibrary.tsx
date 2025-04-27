@@ -3,6 +3,9 @@ import { useEffect, useState } from 'react';
 import Header from './components/Header';
 import MovementCard from './components/MovementCard';
 import Select from 'react-select';
+import { useSearchParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
+
 
 interface MovementData {
   topic: string;
@@ -13,7 +16,10 @@ interface MovementData {
 }
 
 export default function MovementLibrary() {
-  const [selectedTopic, setSelectedTopic] = useState<string>('');
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams(); 
+  const initialSearch = searchParams.get('search') || ''; // 讀取 URL 上的 ?search=xxx
+  const [selectedTopic, setSelectedTopic] = useState<string>(initialSearch); 
   const [selectedType, setSelectedType] = useState<string>('All');
   const [movements, setMovements] = useState<MovementData[]>([]);
   const [typeLabels, setTypeLabels] = useState<Record<string, string>>({});
@@ -77,9 +83,21 @@ export default function MovementLibrary() {
               <label className="block text-sm font-medium text-gray-700 mb-1">選擇主題</label>
               <Select
                 options={topics.map((t) => ({ label: t, value: t }))}
-                onChange={(option) => setSelectedTopic(option?.value || '')}
+                value={selectedTopic ? { label: selectedTopic, value: selectedTopic } : null}
+                onChange={(option) => {
+                  const value = option?.value || '';
+                  setSelectedTopic(value);
+              
+                  // 🔥 更新 URL
+                  if (value) {
+                    navigate(`/movement?search=${encodeURIComponent(value)}`, { replace: true });
+                  } else {
+                    navigate('/movement', { replace: true });
+                  }
+                }}
                 placeholder="請輸入或選擇主題"
                 isSearchable
+                isClearable
                 className="mb-4 text-sm sm:text-base"
                 classNamePrefix="react-select"
               />

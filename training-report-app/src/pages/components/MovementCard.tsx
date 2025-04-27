@@ -1,5 +1,6 @@
 // components/MovementCard.tsx
 import { FaLock } from 'react-icons/fa';
+import { getLevelBorderStyle } from '../utils/levelStyle.ts';
 
 interface MovementData {
   topic: string;
@@ -9,15 +10,15 @@ interface MovementData {
   locked: boolean;
 }
 
-const levelColors: Record<string, string> = {
+/*const levelColors: Record<string, string> = {
   Lv2: 'border-green-400',
   Lv3: 'border-blue-400',
   Lv4: 'border-purple-400',
   Lv5: 'border-yellow-400'
-};
+};*/
 
 export default function MovementCard({ data }: { data: MovementData }) {
-  const borderColor = data.locked ? 'border-gray-300' : levelColors[data.level] || 'border-teal-400';
+  const borderColor = data.locked ? 'border-gray-300' : getLevelBorderStyle(data.level) || 'border-teal-400';
   const cardBaseStyle = `rounded-xl p-4 border-l-4 ${borderColor} bg-white shadow transition duration-200`;
 
   return (

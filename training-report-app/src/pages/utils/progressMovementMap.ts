@@ -1,0 +1,28 @@
+// src/utils/progressMovementMap.ts
+
+export const progressMovementMap = [
+  { week: 1, action: '動作1', title: '1/肩胛骨中立術' },
+  { week: 1, action: '動作2', title: '2/肩胛骨穩定術' },
+  { week: 1, action: '動作3', title: '3/肩胛核心大法' },
+  { week: 2, action: '動作1', title: '4/胸椎不卡卡術' },
+  { week: 2, action: '動作2', title: '5/轉胸不轉頭' },
+  { week: 2, action: '動作3', title: '6/弓步+胸椎旋轉' },
+  { week: 3, action: '動作1', title: '7/骨盆中立術' },
+  { week: 3, action: '動作2', title: '8/骨盆端正術' },
+  { week: 3, action: '動作3', title: '9/穩定骨盆大法' },
+  { week: 4, action: '動作1', title: '10/好好呼吸術' },
+  { week: 4, action: '動作2', title: '11/伸展舒壓術' },
+  { week: 4, action: '動作3', title: '12/下午提神大法' },
+  { week: 5, action: '動作1', title: '13/練成直角肩' },
+  { week: 5, action: '動作2', title: '14/肩膀強壯術' },
+  { week: 5, action: '動作3', title: '15/豐胸訓練大法（強化前鋸肌）' },
+  { week: 6, action: '動作1', title: '16/頸椎保養術' },
+  { week: 6, action: '動作2', title: '17/天鵝頸訓練大法' },
+  { week: 6, action: '動作3', title: '18/滑手機省力術' },
+  { week: 7, action: '動作1', title: '19/骨盆穩定術' },
+  { week: 7, action: '動作2', title: '20/翹臀訓練大法' },
+  { week: 7, action: '動作3', title: '21/弓步蹲' },
+  { week: 8, action: '動作1', title: '22/開心開工大法' },
+  { week: 8, action: '動作2', title: '23/脊椎不卡卡術' },
+  { week: 8, action: '動作3', title: '24/能屈能伸大法' },
+];
