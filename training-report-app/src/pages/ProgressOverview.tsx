@@ -8,6 +8,7 @@ import { progressMovementMap } from '../pages/utils/progressMovementMap';
 
 interface UserProgress {
   nickname: string;
+  point?: number; 
   rotation: string;
   progress: {
     [theme: string]: {
@@ -96,6 +97,9 @@ export default function ProgressOverview() {
             />
             {filteredUser && (
               <div className="mt-4 text-sm text-gray-700">
+                {filteredUser.point !== undefined && (
+                  <p className="mb-2 font-semibold">訓練點數：{filteredUser.point} 點</p>
+                )}
                 <p className="mb-2 font-semibold">身體旋轉習慣：{filteredUser.rotation}</p>
                 {Object.entries(filteredUser.progress).map(([theme, actions], idx) => (
                   <div key={idx} className="mb-2">
@@ -144,6 +148,7 @@ export default function ProgressOverview() {
                 <thead>
                   <tr className="bg-gray-100">
                     <th className="px-2 py-1 border w-24 text-center">綽號</th>
+                    <th className="px-2 py-1 border w-20 text-center">點數</th>
                     {visibleThemes.map((t, i) => (
                       <th key={i} colSpan={3} className="px-2 py-1 border text-center">
                         {t.title.replace(/-\d$/, '')}
@@ -151,6 +156,7 @@ export default function ProgressOverview() {
                     ))}
                   </tr>
                   <tr className="bg-gray-50">
+                    <th className="border px-2 py-1"></th>
                     <th className="border px-2 py-1"></th>
                     {visibleThemes.map((_, i) => [1, 2, 3].map(j => (
                       <th key={`${i}-${j}`} className="border px-2 py-1 text-center w-24 whitespace-normal">動作<br />{j}</th>
@@ -166,6 +172,7 @@ export default function ProgressOverview() {
                           <span>{user.nickname}</span>
                         </div>
                       </td>
+                      <td className="border px-2 py-1 text-center">{user.point ?? '-'}</td>
                       {visibleThemes.map((theme, j) => {
                         const actions = user.progress[theme.title] || {};
                         return ['動作1', '動作2', '動作3'].map((action, k) => (
