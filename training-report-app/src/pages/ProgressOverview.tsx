@@ -103,7 +103,7 @@ export default function ProgressOverview() {
                 <p className="mb-2 font-semibold">身體旋轉習慣：{filteredUser.rotation}</p>
                 {Object.entries(filteredUser.progress).map(([theme, actions], idx) => (
                   <div key={idx} className="mb-2">
-                    <p className="font-medium text-teal-600">{theme.replace(/-\d$/, '')}</p>
+                    <p className="font-medium text-teal-600">第{idx+1}週:{theme.replace(/-\d$/, '')}</p>
                     <div className="flex flex-wrap gap-2 mt-1">
                       {Object.entries(actions).map(([action, lv], i) => {
                         const mapped = progressMovementMap.find(

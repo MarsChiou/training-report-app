@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react';
 import { FaDumbbell, FaBookOpen, FaCheckCircle } from 'react-icons/fa';
 import Select from 'react-select';
 import Header from './components/Header';
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
+
 
 function getTaiwanTodayDateString() {
   const now = new Date();
@@ -22,7 +25,7 @@ export default function DailyReportForm() {
   const [nameOptions, setNameOptions] = useState<{ label: string; value: string }[]>([]);
 
   const [selectedDate, setSelectedDate] = useState(today);
-  const CAMP_START_DATE = new Date("2025-02-17");
+  const CAMP_START_DATE = new Date("2025-05-05");
   const calculateDayNumber = (dateStr: string) => {
     const date = new Date(dateStr);
     return Math.floor((date.getTime() - CAMP_START_DATE.getTime()) / (1000 * 60 * 60 * 24)) + 1;
@@ -34,6 +37,20 @@ export default function DailyReportForm() {
   const [showToast, setShowToast] = useState(false);
   const [toastVisible, setToastVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
+  
+  const getValidationMessage = () => {
+    const selected = new Date(selectedDate);
+    const todayDate = new Date(today);  
+    if (!userId) return "請先選擇您的名字";
+    if (selected < CAMP_START_DATE) return "營隊作業從 5/5 才開始喔!";
+    if (selected > todayDate) return "不能選擇未來的日期喔！";
+    if (!trainingDone && !diaryDone) return "至少要完成訓練或日記其中一項喔!💪";
+
+    return "";
+  };
+  const validationMessage = getValidationMessage();
+
+  
 
   useEffect(() => {
     fetch(NAME_API_URL)
@@ -47,7 +64,36 @@ export default function DailyReportForm() {
       .catch((err) => console.error("名單載入失敗：", err));
   }, []);
 
+  const showSuccessToast = (message: string = "提交成功！💪") => {
+    setToastMessage(message);
+    setSubmitted(true);
+    setShowToast(true);
+    setTimeout(() => setToastVisible(true), 50);
+    setTimeout(() => {
+      setToastVisible(false);
+      setTimeout(() => setShowToast(false), 300);
+    }, 2000);
+  };
+  
+  const showErrorToast = (message: string) => {
+    setToastMessage(message);
+    setSubmitted(false);
+    setShowToast(true);
+    setTimeout(() => setToastVisible(true), 50);
+    setTimeout(() => {
+      setToastVisible(false);
+      setTimeout(() => setShowToast(false), 300);
+    }, 2000);
+  };
+  
+  
   const handleSubmit = async () => {
+    const errorMessage = getValidationMessage();
+    if (errorMessage) {
+      showErrorToast("⚠️ 回報失敗：" + errorMessage);
+      return;
+    }
+    
     setSubmitting(true);
 
     const data = {
@@ -67,24 +113,8 @@ export default function DailyReportForm() {
         body: JSON.stringify(data),
       });
 
-      const result = await response.text();
-      setToastMessage(result || "提交成功！💪");
-      setSubmitted(true);
-      setShowToast(true);
-      setTimeout(() => {
-        setToastVisible(true); // 開始動畫進場
-      }, 50); // 稍微延遲，讓 transition 能被觸發
-      
-      /*setTrainingDone(false);
-      setDiaryDone(false);*/
-
-      // 2秒後關閉 Toast
-      setTimeout(() => {
-        setToastVisible(false); // 動畫出場
-        setTimeout(() => {
-          setShowToast(false); // 完全移除
-        }, 300); // 動畫結束後（300ms）
-      }, 2000);
+      const result = (await response.text()).trim();
+      showSuccessToast(result.length > 0 ? result : "提交成功！💪");  
     } catch (err: any) {
       console.error("送出錯誤", err);
       alert("送出失敗：" + err.message);
@@ -125,19 +155,84 @@ export default function DailyReportForm() {
           />
         </div>
 
+        
         {/* 選擇日期 */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">選擇回報日期</label>
-          <input
-            type="date"
+          <DatePicker
+            renderCustomHeader={({
+              date,
+              changeYear,
+              changeMonth,
+              decreaseMonth,
+              increaseMonth,
+              prevMonthButtonDisabled,
+              nextMonthButtonDisabled
+            }) => (
+            <div className="flex justify-between items-center px-4 py-2 bg-gray-50 border-b border-gray-200 rounded-t-lg text-gray-700">
+              {/* 上一個月按鈕 */}
+              <button
+                onClick={decreaseMonth}
+                disabled={prevMonthButtonDisabled}
+                className="px-2 py-1 text-sm hover:bg-gray-200 rounded disabled:opacity-30"
+              >
+                ‹
+              </button>
+          
+              {/* 月份 + 年份下拉 */}
+              <div className="flex items-center space-x-2">
+                <select
+                  value={date.getFullYear()}
+                  onChange={({ target: { value } }) => changeYear(Number(value))}
+                  className="bg-white border border-gray-300 rounded px-2 py-1 text-sm"
+                >
+                  {[...Array(5)].map((_, i) => {
+                    const year = new Date().getFullYear() - 2 + i;
+                    return <option key={year} value={year}>{year}</option>;
+                  })}
+                </select>
+          
+                <select
+                  value={date.getMonth()}
+                  onChange={({ target: { value } }) => changeMonth(Number(value))}
+                  className="bg-white border border-gray-300 rounded px-2 py-1 text-sm"
+                >
+                  {["1月","2月","3月","4月","5月","6月","7月","8月","9月","10月","11月","12月"].map((month, index) => (
+                    <option key={index} value={index}>{month}</option>
+                  ))}
+                </select>
+              </div>
+          
+              {/* 下一個月按鈕 */}
+              <button
+                onClick={increaseMonth}
+                disabled={nextMonthButtonDisabled}
+                className="px-2 py-1 text-sm hover:bg-gray-200 rounded disabled:opacity-30"
+              >
+                ›
+              </button>
+            </div>
+            )}
+            
+            /* 日期選擇邏輯 */
+            selected={new Date(selectedDate)}
+            onChange={(date: Date | null) => {
+              if (date) {
+                const formatted = date.toISOString().split("T")[0];
+                setSelectedDate(formatted);
+              }
+            }}
+            minDate={CAMP_START_DATE} // ✅ 限制不可選營隊前的日期
+            maxDate={new Date(today)}// ✅ 限制不可選未來日期
             className="w-full border border-gray-300 rounded-lg px-3 py-2"
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-            min={CAMP_START_DATE.toISOString().split("T")[0]} // ✅ 限制不可選營隊前的日期
-            max={today} // ✅ 限制不可選未來日期
+            calendarClassName="bg-white rounded-lg shadow-xl border border-gray-200 p-2"
+            
+            dateFormat="yyyy-MM-dd"
+            placeholderText="請選擇回報日期"
           />
           <p className="text-xs text-gray-500 mt-1">營隊第 {dayNumber} 天</p>
         </div>
+
 
         {/* 今天有完成訓練 */}
         <div className="flex items-center space-x-3">
@@ -170,13 +265,19 @@ export default function DailyReportForm() {
         {/* 提交按鈕 */}
         <button
           onClick={handleSubmit}
-          disabled={submitting || !userId}
+          disabled={submitting || !userId || (!trainingDone && !diaryDone)}
           className="w-full flex justify-center items-center bg-teal-500 hover:bg-teal-600 text-white font-bold py-2 px-4 rounded-xl transition duration-150 disabled:opacity-50"
         >
           <FaCheckCircle className="mr-2" />
           {submitting ? '提交中...' : '提交回報'}
         </button>
-
+        
+        {/* 錯誤提示 */}
+        {validationMessage && (
+          <p className="text-sm text-teal-500 mt-2 text-center">
+            {validationMessage}
+          </p>
+        )}
         {/* 成功提示 */}
         {submitted && (
           <div className="flex flex-col items-center justify-center mt-6">
