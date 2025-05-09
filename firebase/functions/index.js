@@ -35,18 +35,52 @@ exports.proxyToGAS = functions
         return res.status(405).send("Method Not Allowed");
       }
 
+      // Log 用資料
+      const requestData = req.body;
+      const timestampUTC = new Date();
+      const timestampTaiwan = new Date(timestampUTC.
+          getTime() + 8 * 60 * 60 * 1000);
+
+      const dateString = timestampTaiwan.
+          toISOString().split("T")[0]; // e.g., "2025-05-05"
+      const timeString = timestampTaiwan.
+          toTimeString().split(" ")[0]; // e.g., "14:25:36"
+      const logId = `${timeString}_${requestData.userId || "unknow"}`; // doc ID
+
+      let gasResponseText = "";
+      let errorMessage = "";
+
+      //
       try {
-        const response = await fetch(GAS_BASE_URL, {
+        const gasResponse = await fetch(GAS_BASE_URL, {
           method: "POST",
           headers: {"Content-Type": "application/json"},
-          body: JSON.stringify(req.body),
+          body: JSON.stringify(requestData),
         });
 
-        const result = await response.text();
-        return res.status(200).send(result);
+        gasResponseText = await gasResponse.text();
+        res.status(200).send(gasResponseText);
       } catch (err) {
+        errorMessage = err.message;
         console.error("轉送失敗", err);
-        return res.status(500).send("發生錯誤：" + err.message);
+        res.status(500).send("發生錯誤：" + errorMessage);
+      } finally {
+        try {
+          await db
+              .collection("postLogs")
+              .doc(dateString) // 每天一份文件
+              .collection("entries") // subcollection 裡每筆 log
+              .doc(logId) // 可避免重複（理論上不太會撞）
+              .set({
+                requestData,
+                gasResponse: gasResponseText,
+                errorMessage,
+                timestampUTC: timestampUTC.toISOString(),
+                timestampTaiwan: timestampTaiwan.toLocaleString("zh-TW"),
+              });
+        } catch (logErr) {
+          console.error("寫入 Firestore log 時失敗", logErr);
+        }
       }
     });
 

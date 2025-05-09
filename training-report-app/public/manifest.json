@@ -1,0 +1,20 @@
+{
+  "name": "Jo i 健康隊回報系統",
+  "short_name": "Jo i 健康隊",
+  "start_url": "/report",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#22c55e",
+  "icons": [
+    {
+      "src": "/images/PWA_icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/images/PWA_icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

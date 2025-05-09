@@ -143,7 +143,7 @@ export default function ProgressOverview() {
               </div>
             </div>
 
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto ">
               <table className="min-w-full border text-sm font-mono">
                 <thead>
                   <tr className="bg-gray-100">
