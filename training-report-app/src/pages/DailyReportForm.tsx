@@ -8,10 +8,10 @@ import "react-datepicker/dist/react-datepicker.css";
 
 function getTaiwanTodayDateString() {
   const now = new Date();
-  const taiwanOffset = 8 * 60;
-  const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
-  const taiwanTime = new Date(utc + taiwanOffset * 60000);
-  return taiwanTime.toISOString().split("T")[0];
+  const yyyy = now.getFullYear();
+  const mm = String(now.getMonth() + 1).padStart(2, '0');
+  const dd = String(now.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
 }
 
 export default function DailyReportForm() {
