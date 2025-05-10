@@ -1,6 +1,11 @@
 const functions = require("firebase-functions");
 const fetch = require("node-fetch");
 const admin = require("firebase-admin");
+const axios = require("axios");
+const {onRequest} = require("firebase-functions/v2/https");
+const {defineSecret} = require("firebase-functions/params");
+const LINE_CHANNEL_ACCESS_TOKEN = defineSecret("LINE_CHANNEL_ACCESS_TOKEN");
+
 
 if (!admin.apps.length) {
   admin.initializeApp();
@@ -9,8 +14,8 @@ if (!admin.apps.length) {
 const db = admin.firestore();
 
 const CACHE_TTL = {
-  movementLib: 12 * 60 * 60 * 1000, // 12 hours
-  trainingProgress: 12 * 60 * 60 * 1000, // 12 hours
+  movementLib: 8 * 60 * 60 * 1000, // 12 hours
+  trainingProgress: 6 * 60 * 60 * 1000, // 12 hours
 };
 
 const GAS_BASE_URL ="https://script.google.com/macros/s/AKfycbzcf0YKfJksPgxBbNT-5ElE11Rz13H5D1hsm5dT1k0W8WptQ62HpbYLlqf54ImkNlefKw/exec";
@@ -180,3 +185,95 @@ exports.proxyTrainingProgressWithCache = functions
         res.status(500).send("Server error");
       }
     });
+
+// 強制更新訓練進度
+exports.forceUpdateTrainingProgressCache = functions
+    .https.onRequest(async (req, res) => {
+      res.set("Access-Control-Allow-Origin", "*");
+      res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+      res.set("Access-Control-Allow-Headers", "Content-Type");
+
+      if (req.method === "OPTIONS") {
+        res.status(204).send("");
+        return;
+      }
+
+      try {
+        const response = await fetch(GAS_PROGRESS_URL);
+        const contentType = response.headers.get("Content-Type");
+
+        if (!contentType || !contentType.includes("application/json")) {
+          const text = await response.text();
+          console.error("❌ GAS 回傳非 JSON：", text.slice(0, 200));
+          return res.status(502).send("GAS 回傳錯誤，請重新檢查部署與授權設定");
+        }
+
+        const freshData = await response.json();
+
+        const cacheDocRef = db.collection("cache").doc("trainingProgress");
+        await cacheDocRef.set({
+          lastUpdate: new Date().toISOString(),
+          data: freshData,
+        });
+
+        console.log("✅ 訓練進度快取已強制更新");
+        res.status(200).send("✅ 訓練進度快取已強制更新");
+      } catch (error) {
+        console.error("🔥 強制更新錯誤：", error);
+        res.status(500).send("❌ 強制更新失敗");
+      }
+    });
+
+// Line Web Hook Server
+exports.lineWebhook = onRequest(
+    {secrets: [LINE_CHANNEL_ACCESS_TOKEN]}, async (req, res) => {
+      const event = req.body.events?.[0];
+      if (!event || event.type !== "message" || event.message.type !== "text") {
+        return res.status(200).send("Not a valid text message");
+      }
+
+      const message = event.message.text;
+      const replyToken = event.replyToken;
+      const trainingProgressUrl = "https://us-central1-joi-team.cloudfunctions.net/forceUpdateTrainingProgressCache";
+
+      if (message === "/更新動作進度") {
+        try {
+          const response = await fetch(trainingProgressUrl, {method: "POST"});
+          const resultText = await response.text();
+
+          await reply(replyToken, resultText);
+          return res.status(200).send("更新進度成功");
+        } catch (err) {
+          console.error("🔥 呼叫 Firebase Function 失敗", err);
+          await reply(replyToken, "❌ 更新進度失敗");
+          return res.status(500).send("更新失敗");
+        }
+      } else {
+        await reply(replyToken, "這個指令我不認識喔~");
+        return res.status(200).send("已處理訊息");
+      }
+    });
+
+/**
+ * 回覆訊息給使用者
+ * @param {string} replyToken - LINE 回覆 token
+ * @param {string} text - 要回覆的文字
+ * @return {Promise} - axios POST 回應 promise
+ */
+async function reply(replyToken, text) {
+  const token = LINE_CHANNEL_ACCESS_TOKEN.value();
+  console.log("✅ 取得的 token 長度:", token?.length);
+  return axios.post(
+      "https://api.line.me/v2/bot/message/reply",
+      {
+        replyToken,
+        messages: [{type: "text", text}],
+      },
+      {
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${LINE_CHANNEL_ACCESS_TOKEN.value()}`,
+        },
+      },
+  );
+}

@@ -2,6 +2,9 @@
   "name": "0_joi",
   "version": "1.0.0",
   "main": "0_joi.js",
+  "engines": {
+    "node": "22" 
+  },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
