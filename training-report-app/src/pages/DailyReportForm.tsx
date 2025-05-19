@@ -31,6 +31,7 @@ export default function DailyReportForm() {
     return Math.floor((date.getTime() - CAMP_START_DATE.getTime()) / (1000 * 60 * 60 * 24)) + 1;
   };
   const dayNumber = calculateDayNumber(selectedDate);
+  const isRestDay = dayNumber % 7 === 0;
 
   const NAME_API_URL = `${import.meta.env.VITE_GAS_URL}?action=names`;
   const POST_API_URL = import.meta.env.VITE_REPORT_API_URL;
@@ -44,12 +45,20 @@ export default function DailyReportForm() {
     if (!userId) return "請先選擇您的名字";
     if (selected < CAMP_START_DATE) return "營隊作業從 5/5 才開始喔!";
     if (selected > todayDate) return "不能選擇未來的日期喔！";
-    if (!trainingDone && !diaryDone) return "至少要完成訓練或日記其中一項喔!💪";
+    if (!isRestDay && !trainingDone && !diaryDone) return "至少要完成訓練或日記其中一項喔!💪";
+    if (isRestDay && !diaryDone) return "健心日，好好覺察自己的內心 📝";
 
     return "";
   };
   const validationMessage = getValidationMessage();
 
+  const successTextList = [
+    "回報完成！🎉🎉",
+    "回報完成！今天的你還是這麼棒👏",
+    "回報完成！給自己一個大大的讚👍",
+    "回報完成！太強了！🔥"
+  ];
+  const [successText, setSuccessText] = useState("");
   
 
   useEffect(() => {
@@ -114,7 +123,12 @@ export default function DailyReportForm() {
       });
 
       const result = (await response.text()).trim();
-      showSuccessToast(result.length > 0 ? result : "提交成功！💪");  
+      
+      const randomSuccess = successTextList[Math.floor(Math.random() * successTextList.length)];
+      setSuccessText(randomSuccess);
+      setSubmitted(true);
+  
+      showSuccessToast(result.length > 0 ? result : "回報成功！💪");  
     } catch (err: any) {
       console.error("送出錯誤", err);
       alert("送出失敗：" + err.message);
@@ -235,18 +249,25 @@ export default function DailyReportForm() {
 
 
         {/* 今天有完成訓練 */}
-        <div className="flex items-center space-x-3">
-          <FaDumbbell className="text-teal-600 text-xl" />
-          <label className="flex items-center text-gray-700">
-            <input
-              type="checkbox"
-              className="mr-2"
-              checked={trainingDone}
-              onChange={(e) => setTrainingDone(e.target.checked)}
-            />
-            今天有完成訓練
-          </label>
-        </div>
+        {!isRestDay ? (
+          <div className="flex items-center space-x-3">
+            <FaDumbbell className="text-teal-600 text-xl" />
+            <label className="flex items-center text-gray-700">
+              <input
+                type="checkbox"
+                className="mr-2"
+                checked={trainingDone}
+                onChange={(e) => setTrainingDone(e.target.checked)}
+              />
+              今天有完成訓練
+            </label>
+          </div>
+        ) : (
+          <div className="flex items-center space-x-3 text-gray-500">
+            <FaDumbbell className="text-teal-400 text-xl" />
+            <span className="italic">今天是健心休息日，請好好休息 💤</span>
+          </div>
+        )}
 
         {/* 今天有寫日記 */}
         <div className="flex items-center space-x-3">
@@ -269,7 +290,7 @@ export default function DailyReportForm() {
           className="w-full flex justify-center items-center bg-teal-500 hover:bg-teal-600 text-white font-bold py-2 px-4 rounded-xl transition duration-150 disabled:opacity-50"
         >
           <FaCheckCircle className="mr-2" />
-          {submitting ? '提交中...' : '提交回報'}
+          {submitting ? '奔跑提交中...' : '提交回報'}
         </button>
         
         {/* 錯誤提示 */}
@@ -283,7 +304,7 @@ export default function DailyReportForm() {
           <div className="flex flex-col items-center justify-center mt-6">
             <FaCheckCircle className="text-green-500 text-4xl animate-bounce" />
             <p className="text-green-600 text-center font-semibold mt-2">
-              恭喜完成訓練！💪
+              {successText}
             </p>
          </div>
         )}
