@@ -7,7 +7,7 @@ export default function Header() {
   const navItems = [
     { name: '每日回報', path: '/report' },
     { name: '進度總表', path: '/progress' },
-    { name: '動作圖庫', path: '/movement' },
+    { name: '動作升級中心', path: '/movement' },
   ];
 
   return (
