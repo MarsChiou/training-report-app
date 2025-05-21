@@ -14,8 +14,8 @@ if (!admin.apps.length) {
 const db = admin.firestore();
 
 const CACHE_TTL = {
-  movementLib: 8 * 60 * 60 * 1000, // 12 hours
-  trainingProgress: 6 * 60 * 60 * 1000, // 12 hours
+  movementLib: 12 * 60 * 60 * 1000, // 12 hours
+  trainingProgress: 12 * 60 * 60 * 1000, // 12 hours
 };
 
 const GAS_BASE_URL ="https://script.google.com/macros/s/AKfycbzcf0YKfJksPgxBbNT-5ElE11Rz13H5D1hsm5dT1k0W8WptQ62HpbYLlqf54ImkNlefKw/exec";

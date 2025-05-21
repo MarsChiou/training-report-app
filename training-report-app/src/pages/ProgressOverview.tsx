@@ -22,24 +22,6 @@ interface WeekTheme {
   week: number;
 }
 
-/*const getLevelStyle = (level: string) => {
-  switch (level) {
-    case 'Lv0':
-    case 'LV0':
-      return 'bg-gray-200 text-gray-700';
-    case 'Lv1':
-      return 'bg-blue-100 text-blue-800';
-    case 'Lv2':
-      return 'bg-green-100 text-green-800';
-    case 'Lv3':
-      return 'bg-yellow-100 text-yellow-800';
-    case 'Lv4':
-      return 'bg-purple-100 text-purple-800';
-    default:
-      return 'bg-purple-100 text-gray-500';
-  }
-};*/
-
 export default function ProgressOverview() {
   const [data, setData] = useState<UserProgress[]>([]);
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
@@ -117,7 +99,7 @@ export default function ProgressOverview() {
                             key={i}
                             className={`px-2 py-1 rounded-full text-xs ${getLevelBackgroundStyle(lv)} hover:underline hover:text-blue-600 transition min-w-[72px] text-center font-mono`}
                           >
-                            {action}: {lv}
+                            {movementTitle.split(" ")[0]}: {lv}
                           </Link>
                         );
                       })}
@@ -158,9 +140,19 @@ export default function ProgressOverview() {
                   <tr className="bg-gray-50">
                     <th className="border px-2 py-1"></th>
                     <th className="border px-2 py-1"></th>
-                    {visibleThemes.map((_, i) => [1, 2, 3].map(j => (
-                      <th key={`${i}-${j}`} className="border px-2 py-1 text-center w-24 whitespace-normal">動作<br />{j}</th>
-                    )))}
+                    {visibleThemes.flatMap((theme) => {
+                      return ['動作1', '動作2', '動作3'].map((action) => {
+                        const mapped = progressMovementMap.find(
+                          (item) => item.week === theme.week && item.action === action
+                        );
+                        const displayTitle = mapped?.title?.split(' ')[0] || action; // 顯示 "P26"，如果沒找到 fallback 為原本動作名
+                        return (
+                          <th key={`${theme.week}-${action}`} className="border px-2 py-1 text-center w-24 whitespace-normal">
+                            {displayTitle}
+                          </th>
+                        );
+                      });
+                    })}
                   </tr>
                 </thead>
                 <tbody>
