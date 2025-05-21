@@ -23,6 +23,7 @@ export default function DailyReportForm() {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [nameOptions, setNameOptions] = useState<{ label: string; value: string }[]>([]);
+  const [diaryText, setDiaryText] = useState("");
 
   const [selectedDate, setSelectedDate] = useState(today);
   const CAMP_START_DATE = new Date("2025-05-05");
@@ -111,6 +112,7 @@ export default function DailyReportForm() {
       diaryDone,
       date: selectedDate,
       dayNumber: dayNumber,
+      diaryText,
     };
 
     try {
@@ -279,8 +281,32 @@ export default function DailyReportForm() {
               checked={diaryDone}
               onChange={(e) => setDiaryDone(e.target.checked)}
             />
-            今天有寫訓練日記
+            今天有寫覺察日記
           </label>
+        </div>
+        {/* 覺察日記區塊 */}
+        <div className="space-y-2">
+          <label htmlFor="diaryText" className="block text-sm font-medium text-gray-700 mb-1">
+            今日覺察日記 
+          </label>
+          <textarea
+            id="diaryText"
+            rows={6}
+            value={diaryText}
+            maxLength={150}
+            onChange={(e) => setDiaryText(e.target.value)}
+            placeholder="在這裡記錄您今天的感受、覺察和反思..."
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-400 focus:border-transparent text-sm transition duration-150 resize-none"
+          />
+          <p className={`text-xs text-right mt-1 ${diaryText.length > 120 ? "text-red-500" : "text-gray-500"}`}>
+            {diaryText.length}/150 
+          </p>
+
+          {/* <p className="text-xs text-gray-500 mt-1">
+            {isRestDay ? 
+              "今天是健心日，記錄下您對自己內心的覺察" : 
+              "記錄下您今天的訓練心得和覺察"}
+          </p>*/}
         </div>
 
         {/* 提交按鈕 */}

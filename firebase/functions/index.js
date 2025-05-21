@@ -216,6 +216,10 @@ exports.forceUpdateTrainingProgressCache = functions
           data: freshData,
         });
 
+        // ✅ 清除 movementLib 快取
+        await db.collection("cache").doc("movementLib").delete();
+        console.log("🧹 已清除 movementLib 快取");
+
         console.log("✅ 訓練進度快取已強制更新");
         res.status(200).send("✅ 訓練進度快取已強制更新");
       } catch (error) {
