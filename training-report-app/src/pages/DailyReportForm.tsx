@@ -26,7 +26,7 @@ export default function DailyReportForm() {
   const [diaryText, setDiaryText] = useState("");
 
   const [selectedDate, setSelectedDate] = useState(today);
-  const CAMP_START_DATE = new Date("2025-05-05");
+  const CAMP_START_DATE = new Date("2025-08-25");
   const calculateDayNumber = (dateStr: string) => {
     const date = new Date(dateStr);
     return Math.floor((date.getTime() - CAMP_START_DATE.getTime()) / (1000 * 60 * 60 * 24)) + 1;
@@ -44,7 +44,7 @@ export default function DailyReportForm() {
     const selected = new Date(selectedDate);
     const todayDate = new Date(today);  
     if (!userId) return "請先選擇您的名字";
-    if (selected < CAMP_START_DATE) return "營隊作業從 5/5 才開始喔!";
+    if (selected < CAMP_START_DATE) return "營隊作業從 08/25 才開始喔!";
     if (selected > todayDate) return "不能選擇未來的日期喔！";
     if (!isRestDay && !trainingDone && !diaryDone) return "至少要完成訓練或日記其中一項喔!💪";
     if (isRestDay && !diaryDone) return "健心日，好好覺察自己的內心 📝";
@@ -55,7 +55,7 @@ export default function DailyReportForm() {
 
   const successTextList = [
     "回報完成！🎉🎉",
-    "回報完成！今天的你還是這麼棒👏",
+    "回報完成！今天的你很棒👏",
     "回報完成！給自己一個大大的讚👍",
     "回報完成！太強了！🔥"
   ];

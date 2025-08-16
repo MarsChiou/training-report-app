@@ -28,12 +28,12 @@ export default function Header() {
       <div className="flex justify-center items-center my-2">
         <div className="w-8 h-0.5 bg-teal-400 rounded-full"></div>
       </div>
-      <h3 className="text-lg font-semibold text-gray-700 leading-snug">身體控制挑戰營(上) 第二期</h3>
+      <h3 className="text-lg font-semibold text-gray-700 leading-snug">身體控制挑戰營(下) 第一期</h3>
 
       {/* 時間區域 */}
       <div className="mt-2 mb-4">
         <p className="inline-block bg-gray-100 text-gray-500 text-xs px-3 py-1 rounded-full shadow-sm">
-          2025/05/04 ~ 2025/06/29
+          2025/08/25 ~ 2025/10/19
         </p>
       </div>
 
