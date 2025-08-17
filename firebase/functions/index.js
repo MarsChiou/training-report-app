@@ -1,9 +1,9 @@
-const functions = require("firebase-functions");
+const {onRequest} = require("firebase-functions/v2/https");
+const {defineSecret} = require("firebase-functions/params");
 const fetch = require("node-fetch");
 const admin = require("firebase-admin");
 const axios = require("axios");
-const {onRequest} = require("firebase-functions/v2/https");
-const {defineSecret} = require("firebase-functions/params");
+
 const LINE_CHANNEL_ACCESS_TOKEN = defineSecret("LINE_CHANNEL_ACCESS_TOKEN");
 
 if (!admin.apps.length) {
@@ -12,27 +12,46 @@ if (!admin.apps.length) {
 
 const db = admin.firestore();
 
+const REGION = "asia-east1";
+const PROJECT_ID =
+    process.env.GCLOUD_PROJECT ||
+    (process.env.FIREBASE_CONFIG ?
+        JSON.parse(process.env.FIREBASE_CONFIG).projectId :
+        "");
+
+/**
+ * Generate function URL
+ * @param {string} name - Function name
+ * @param {string} region - Region
+ * @param {string} project - Project ID
+ * @return {string} Function URL
+ */
+function functionUrl(name, region = REGION, project = PROJECT_ID) {
+  return `https://${region}-${project}.cloudfunctions.net/${name}`;
+}
+
 const CACHE_TTL = {
-  movementLib: 12 * 60 * 60 * 1000, // 12 hours
-  trainingProgress: 12 * 60 * 60 * 1000, // 12 hours
+  movementLib: 12 * 60 * 60 * 1000,
+  trainingProgress: 12 * 60 * 60 * 1000,
 };
 
-const GAS_BASE_URL ="https://script.google.com/macros/s/AKfycbzcf0YKfJksPgxBbNT-5ElE11Rz13H5D1hsm5dT1k0W8WptQ62HpbYLlqf54ImkNlefKw/exec";
+const GAS_BASE_URL =
+    "https://script.google.com/macros/s/AKfycbzcf0YKfJksPgxBbNT" +
+    "-5ElE11Rz13H5D1hsm5dT1k0W8WptQ62HpbYLlqf54ImkNlefKw/exec";
 const GAS_META_URL = `${GAS_BASE_URL}?action=meta`;
 const GAS_NAMES_URL = `${GAS_BASE_URL}?action=names&format=object`;
 const GAS_MOVEMENT_LIB_URL = `${GAS_BASE_URL}?action=movementLib`;
 const GAS_PROGRESS_URL = `${GAS_BASE_URL}?action=progress`;
-// Diary with cache (GET /proxyDiaryWithCache?userId=...&fresh=1 可繞過快取)
-const CACHE_TTL_DIARY = 24 * 60 * 60 * 1000;
 const GAS_DIARY_URL = `${GAS_BASE_URL}?action=diary`;
+const CACHE_TTL_DIARY = 24 * 60 * 60 * 1000;
 
 if (!GAS_BASE_URL) {
   throw new Error("❌ GAS_BASE_URL 未定義");
 }
 
-// 建立一個 HTTPS Cloud Function 作為代理
-exports.proxyToGAS = functions
-    .https.onRequest(async (req, res) => {
+exports.proxyToGAS = onRequest(
+    {region: REGION},
+    async (req, res) => {
       res.set("Access-Control-Allow-Origin", "*");
       res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
       res.set("Access-Control-Allow-Headers", "Content-Type");
@@ -45,22 +64,19 @@ exports.proxyToGAS = functions
         return res.status(405).send("Method Not Allowed");
       }
 
-      // Log 用資料
       const requestData = req.body;
       const timestampUTC = new Date();
-      const timestampTaiwan = new Date(timestampUTC.
-          getTime() + 8 * 60 * 60 * 1000);
+      const timestampTaiwan = new Date(
+          timestampUTC.getTime() + 8 * 60 * 60 * 1000,
+      );
 
-      const dateString = timestampTaiwan.
-          toISOString().split("T")[0]; // e.g., "2025-05-05"
-      const timeString = timestampTaiwan.
-          toTimeString().split(" ")[0]; // e.g., "14:25:36"
-      const logId = `${timeString}_${requestData.userId || "unknow"}`; // doc ID
+      const dateString = timestampTaiwan.toISOString().split("T")[0];
+      const timeString = timestampTaiwan.toTimeString().split(" ")[0];
+      const logId = `${timeString}_${requestData.userId || "unknow"}`;
 
       let gasResponseText = "";
       let errorMessage = "";
 
-      //
       try {
         const gasResponse = await fetch(GAS_BASE_URL, {
           method: "POST",
@@ -71,9 +87,11 @@ exports.proxyToGAS = functions
         gasResponseText = await gasResponse.text();
         res.status(200).send(gasResponseText);
         // === 若回報成功且含日記 → 失效日記快取 ===
-        const ok = gasResponse.ok && gasResponseText &&
-          !gasResponseText.startsWith("❌") &&
-          !gasResponseText.includes("錯誤");
+        const ok =
+                gasResponse.ok &&
+                gasResponseText &&
+                !gasResponseText.startsWith("❌") &&
+                !gasResponseText.includes("錯誤");
         const diaryText = String(requestData.diaryText || "").trim();
         const diaryDone = !!requestData.diaryDone;
 
@@ -92,7 +110,6 @@ exports.proxyToGAS = functions
             console.log(`🧹 Diary cache invalidated, count=${cnt}`);
           } catch (invErr) {
             console.error("invalidate diary cache failed", invErr);
-            // 不影響主流程
           }
         }
       } catch (err) {
@@ -120,8 +137,9 @@ exports.proxyToGAS = functions
     });
 
 // 動作圖庫功能
-exports.proxyMovementLibWithCache = functions
-    .https.onRequest(async (req, res) => {
+exports.proxyMovementLibWithCache = onRequest(
+    {region: REGION},
+    async (req, res) => {
       res.set("Access-Control-Allow-Origin", "*");
       res.set("Access-Control-Allow-Methods", "GET, OPTIONS");
       res.set("Access-Control-Allow-Headers", "Content-Type");
@@ -151,7 +169,9 @@ exports.proxyMovementLibWithCache = functions
         if (!contentType || !contentType.includes("application/json")) {
           const text = await response.text();
           console.error("❌ GAS 回傳非 JSON：", text.slice(0, 200));
-          return res.status(502).send("GAS 回傳錯誤，請重新檢查部署與授權設定");
+          return res
+              .status(502)
+              .send("GAS 回傳錯誤，請重新檢查部署與授權設定");
         }
 
         const freshData = await response.json();
@@ -168,8 +188,9 @@ exports.proxyMovementLibWithCache = functions
       }
     });
 
-exports.proxyTrainingProgressWithCache = functions
-    .https.onRequest(async (req, res) => {
+exports.proxyTrainingProgressWithCache = onRequest(
+    {region: REGION},
+    async (req, res) => {
       res.set("Access-Control-Allow-Origin", "*");
       res.set("Access-Control-Allow-Methods", "GET, OPTIONS");
       res.set("Access-Control-Allow-Headers", "Content-Type");
@@ -199,7 +220,9 @@ exports.proxyTrainingProgressWithCache = functions
         if (!contentType || !contentType.includes("application/json")) {
           const text = await response.text();
           console.error("❌ GAS 回傳非 JSON：", text.slice(0, 200));
-          return res.status(502).send("GAS 回傳錯誤，請重新檢查部署與授權設定");
+          return res
+              .status(502)
+              .send("GAS 回傳錯誤，請重新檢查部署與授權設定");
         }
 
         const freshData = await response.json();
@@ -216,123 +239,144 @@ exports.proxyTrainingProgressWithCache = functions
       }
     });
 
-exports.proxyDiaryWithCache = functions.https.onRequest(async (req, res) => {
-  // CORS
-  res.set("Access-Control-Allow-Origin", "*");
-  res.set("Access-Control-Allow-Methods", "GET, OPTIONS");
-  res.set("Access-Control-Allow-Headers", "Content-Type");
+exports.proxyDiaryWithCache = onRequest(
+    {region: REGION},
+    async (req, res) => {
+      res.set("Access-Control-Allow-Origin", "*");
+      res.set("Access-Control-Allow-Methods", "GET, OPTIONS");
+      res.set("Access-Control-Allow-Headers", "Content-Type");
 
-  if (req.method === "OPTIONS") return res.status(204).send("");
-  if (req.method !== "GET") {
-    return res.status(405).json({ok: false, error: "Method Not Allowed"});
-  }
-
-  try {
-    const userId = String(req.query.userId || "").trim();
-    if (!userId) {
-      return res.status(400).json({ok: false, error: "Missing userId"});
-    }
-
-    const start = req.query.start ? String(req.query.start) : "";
-    const end = req.query.end ? String(req.query.end) : "";
-    const fresh = String(req.query.fresh || "") === "1";
-
-    const cacheId = `diary_${userId}${start || end ?
-      `_${start}_${end}` : ""}`;
-    const cacheRef = db.collection("cache").doc(cacheId);
-
-    // fresh=1 → 直接打 GAS 並回填快取
-    if (fresh) {
-      const out = await fetchDiaryFromGASAndCache(GAS_DIARY_URL,
-          {userId, start, end}, cacheRef);
-      return res.status(out.status).json(out.body);
-    }
-
-    // 先看快取
-    const snap = await cacheRef.get();
-    const now = Date.now();
-
-    if (snap.exists) {
-      const {lastUpdate, data} = snap.data();
-      if (data && (now - new Date(lastUpdate).getTime()) < CACHE_TTL_DIARY) {
-        return res.status(200).json(data);
+      if (req.method === "OPTIONS") return res.status(204).send("");
+      if (req.method !== "GET") {
+        return res.status(405).json({ok: false, error: "Method Not Allowed"});
       }
-    }
 
-    // 沒快取或過期 → 取 GAS + 回填
-    const out = await fetchDiaryFromGASAndCache(GAS_DIARY_URL,
-        {userId, start, end}, cacheRef);
-    return res.status(out.status).json(out.body);
-  } catch (err) {
-    console.error("proxyDiaryWithCache error", err);
-    return res.status(500).json({ok: false,
-      error: String(err?.message || err)});
-  }
-});
-
-exports.proxyRosterWithCache = functions.https.onRequest(async (req, res) => {
-  // CORS
-  res.set("Access-Control-Allow-Origin", "*");
-  res.set("Access-Control-Allow-Methods", "GET, OPTIONS");
-  res.set("Access-Control-Allow-Headers", "Content-Type");
-  if (req.method === "OPTIONS") return res.status(204).send("");
-  if (req.method !== "GET") {
-    return res.status(405).json({ok: false, error: "Method Not Allowed"});
-  }
-
-  const fresh = String(req.query.fresh || "") === "1";
-
-  try {
-    // 1) 先拿 meta（取得 campId + rosterVersion）
-    const meta = await fetchJSONorThrow(GAS_META_URL);
-    if (!meta?.ok || !meta?.campId) {
-      return res.status(502).json({ok: false, error: "meta 失敗"});
-    }
-    const campId = String(meta.campId);
-    const version = String(meta.rosterVersion || "");
-
-    const docId = `roster_${campId}`;
-    const ref = db.collection("cache").doc(docId);
-
-    // 2) 非 fresh → 嘗試命中快取（只看版本，不看 TTL）
-    if (!fresh) {
-      const snap = await ref.get();
-      if (snap.exists) {
-        const c = snap.data();
-        if (c && c.version === version && Array.isArray(c.data)) {
-          return res.status(200).json({
-            ok: true, campId, version, roster: c.data, source: "cache",
-            lastUpdate: c.lastUpdate || null,
-          });
+      try {
+        const userId = String(req.query.userId || "").trim();
+        if (!userId) {
+          return res.status(400).json({ok: false, error: "Missing userId"});
         }
+
+        const start = req.query.start ? String(req.query.start) : "";
+        const end = req.query.end ? String(req.query.end) : "";
+        const fresh = String(req.query.fresh || "") === "1";
+
+        const cacheId =
+                `diary_${userId}${start || end ? `_${start}_${end}` : ""}`;
+        const cacheRef = db.collection("cache").doc(cacheId);
+
+        // fresh=1 → 直接打 GAS 並回填快取
+        if (fresh) {
+          const out = await fetchDiaryFromGASAndCache(
+              GAS_DIARY_URL,
+              {userId, start, end},
+              cacheRef,
+          );
+          return res.status(out.status).json(out.body);
+        }
+
+        // 先看快取
+        const snap = await cacheRef.get();
+        const now = Date.now();
+
+        if (snap.exists) {
+          const {lastUpdate, data} = snap.data();
+          if (data && now - new Date(lastUpdate).getTime() < CACHE_TTL_DIARY) {
+            return res.status(200).json(data);
+          }
+        }
+
+        // 沒快取或過期 → 取 GAS + 回填
+        const out = await fetchDiaryFromGASAndCache(
+            GAS_DIARY_URL,
+            {userId, start, end},
+            cacheRef,
+        );
+        return res.status(out.status).json(out.body);
+      } catch (err) {
+        console.error("proxyDiaryWithCache error", err);
+        return res.status(500).json({
+          ok: false,
+          error: String(err?.message || err),
+        });
       }
-    }
-
-    // 3) 取新的名單
-    const list = await fetchJSONorThrow(GAS_NAMES_URL);
-    if (!Array.isArray(list)) {
-      return res.status(502).json({ok: false, error: "names 格式錯誤（非陣列）"});
-    }
-
-    // 4) 覆寫快取（版本跟著 meta）
-    await ref.set({
-      version,
-      data: list,
-      lastUpdate: new Date().toISOString(),
-    }, {merge: true});
-
-    return res.status(200).json({
-      ok: true, campId, version, roster: list, source: "fresh",
     });
-  } catch (e) {
-    console.error("proxyRosterWithCache error", e);
-    return res.status(500).json({ok: false, error: String(e.message || e)});
-  }
-});
+
+exports.proxyRosterWithCache = onRequest(
+    {region: REGION},
+    async (req, res) => {
+      res.set("Access-Control-Allow-Origin", "*");
+      res.set("Access-Control-Allow-Methods", "GET, OPTIONS");
+      res.set("Access-Control-Allow-Headers", "Content-Type");
+      if (req.method === "OPTIONS") return res.status(204).send("");
+      if (req.method !== "GET") {
+        return res.status(405).json({ok: false, error: "Method Not Allowed"});
+      }
+
+      const fresh = String(req.query.fresh || "") === "1";
+
+      try {
+        // 1) 先拿 meta（取得 campId + rosterVersion）
+        const meta = await fetchJSONorThrow(GAS_META_URL);
+        if (!meta?.ok || !meta?.campId) {
+          return res.status(502).json({ok: false, error: "meta 失敗"});
+        }
+        const campId = String(meta.campId);
+        const version = String(meta.rosterVersion || "");
+
+        const docId = `roster_${campId}`;
+        const ref = db.collection("cache").doc(docId);
+
+        // 2) 非 fresh → 嘗試命中快取（只看版本，不看 TTL）
+        if (!fresh) {
+          const snap = await ref.get();
+          if (snap.exists) {
+            const c = snap.data();
+            if (c && c.version === version && Array.isArray(c.data)) {
+              return res.status(200).json({
+                ok: true,
+                campId,
+                version,
+                roster: c.data,
+                source: "cache",
+                lastUpdate: c.lastUpdate || null,
+              });
+            }
+          }
+        }
+
+        // 3) 取新的名單
+        const list = await fetchJSONorThrow(GAS_NAMES_URL);
+        if (!Array.isArray(list)) {
+          return res
+              .status(502)
+              .json({ok: false, error: "names 格式錯誤（非陣列）"});
+        }
+
+        // 4) 覆寫快取（版本跟著 meta）
+        await ref.set(
+            {version, data: list, lastUpdate: new Date().toISOString()},
+            {merge: true},
+        );
+
+        return res.status(200).json({
+          ok: true,
+          campId,
+          version,
+          roster: list,
+          source: "fresh",
+        });
+      } catch (e) {
+        console.error("proxyRosterWithCache error", e);
+        return res.status(500).json({ok: false, error: String(e.message || e)});
+      }
+    });
 
 /**
-*@param {string} url - TheURL
-*/
+ * Fetch JSON from URL or throw error
+ * @param {string} url - The URL
+ * @return {Promise<Object>} JSON response
+ */
 async function fetchJSONorThrow(url) {
   const r = await fetch(url);
   const ctype = r.headers.get("Content-Type") || "";
@@ -353,8 +397,10 @@ async function fetchJSONorThrow(url) {
  * @param {Object} cacheRef - Firestore cache reference
  * @return {Promise<Object>} Response object with status and body
  */
-async function fetchDiaryFromGASAndCache(baseUrl, {userId, start, end},
-    cacheRef) {
+async function fetchDiaryFromGASAndCache(
+    baseUrl, {userId, start, end},
+    cacheRef,
+) {
   const qs = new URLSearchParams({userId});
   if (start) qs.set("start", start);
   if (end) qs.set("end", end);
@@ -364,21 +410,27 @@ async function fetchDiaryFromGASAndCache(baseUrl, {userId, start, end},
   const ctype = r.headers.get("Content-Type") || "";
   if (!ctype.includes("application/json")) {
     const text = await r.text();
-    return {status: 502, body: {ok: false, error: "GAS returned non-JSON",
-      peek: text.slice(0, 200)}};
+    return {
+      status: 502,
+      body: {ok: false, error: "GAS returned non-JSON",
+        peek: text.slice(0, 200)},
+    };
   }
 
   const json = await r.json();
   if (json && json.ok) {
-    await cacheRef.set({lastUpdate: new Date().toISOString(),
-      data: json}, {merge: true});
+    await cacheRef.set(
+        {lastUpdate: new Date().toISOString(), data: json},
+        {merge: true},
+    );
   }
   return {status: 200, body: json};
 }
 
 // 強制更新訓練進度
-exports.forceUpdateTrainingProgressCache = functions
-    .https.onRequest(async (req, res) => {
+exports.forceUpdateTrainingProgressCache = onRequest(
+    {region: REGION},
+    async (req, res) => {
       res.set("Access-Control-Allow-Origin", "*");
       res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
       res.set("Access-Control-Allow-Headers", "Content-Type");
@@ -395,7 +447,9 @@ exports.forceUpdateTrainingProgressCache = functions
         if (!contentType || !contentType.includes("application/json")) {
           const text = await response.text();
           console.error("❌ GAS 回傳非 JSON：", text.slice(0, 200));
-          return res.status(502).send("GAS 回傳錯誤，請重新檢查部署與授權設定");
+          return res
+              .status(502)
+              .send("GAS 回傳錯誤，請重新檢查部署與授權設定");
         }
 
         const freshData = await response.json();
@@ -406,7 +460,6 @@ exports.forceUpdateTrainingProgressCache = functions
           data: freshData,
         });
 
-        // ✅ 清除 movementLib 快取
         await db.collection("cache").doc("movementLib").delete();
         console.log("🧹 已清除 movementLib 快取");
 
@@ -420,7 +473,8 @@ exports.forceUpdateTrainingProgressCache = functions
 
 // Line Web Hook Server
 exports.lineWebhook = onRequest(
-    {secrets: [LINE_CHANNEL_ACCESS_TOKEN]}, async (req, res) => {
+    {region: REGION, secrets: [LINE_CHANNEL_ACCESS_TOKEN]},
+    async (req, res) => {
       const event = req.body.events?.[0];
       if (!event || event.type !== "message" || event.message.type !== "text") {
         return res.status(200).send("Not a valid text message");
@@ -428,14 +482,14 @@ exports.lineWebhook = onRequest(
 
       const message = event.message.text;
       const replyToken = event.replyToken;
-      const trainingProgressUrl = "https://us-central1-joi-team.cloudfunctions" +
-        ".net/forceUpdateTrainingProgressCache";
+      const trainingProgressUrl = functionUrl(
+          "forceUpdateTrainingProgressCache",
+      );
 
       if (message === "/更新動作進度") {
         try {
           const response = await fetch(trainingProgressUrl, {method: "POST"});
           const resultText = await response.text();
-
           await reply(replyToken, resultText);
           return res.status(200).send("更新進度成功");
         } catch (err) {
@@ -447,7 +501,8 @@ exports.lineWebhook = onRequest(
         await reply(replyToken, "這個指令我不認識喔~");
         return res.status(200).send("已處理訊息");
       }
-    });
+    },
+);
 
 /**
  * 回覆訊息給使用者
@@ -457,18 +512,10 @@ exports.lineWebhook = onRequest(
  */
 async function reply(replyToken, text) {
   const token = LINE_CHANNEL_ACCESS_TOKEN.value();
-  console.log("✅ 取得的 token 長度:", token?.length);
   return axios.post(
       "https://api.line.me/v2/bot/message/reply",
-      {
-        replyToken,
-        messages: [{type: "text", text}],
-      },
-      {
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${LINE_CHANNEL_ACCESS_TOKEN.value()}`,
-        },
-      },
+      {replyToken, messages: [{type: "text", text}]},
+      {headers: {"Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`}},
   );
 }

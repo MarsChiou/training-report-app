@@ -7,8 +7,8 @@ export default function Header() {
   const navItems = [
     { name: '每日回報', path: '/report' },
     { name: '進度總表', path: '/progress' },
-    { name: '動作升級中心', path: '/movement' },
     { name: '覺察日記', path: '/diary' },
+    { name: '動作升級中心', path: '/movement' },
   ];
 
   return (
@@ -38,22 +38,30 @@ export default function Header() {
         </p>
       </div>
 
-      {/* 導航列 */}
-      <div className="mt-4 flex justify-center space-x-4 text-sm">
-        {navItems.map((item) => (
-          <a
-            key={item.path}
-            href={item.path}
-            className={`px-3 py-1 rounded-full transition transform duration-300
-              ${
-                currentPath === item.path
-                  ? 'bg-teal-500 text-white font-bold scale-105'
+      {/* 導航列：手機兩行、平板以上四欄 */}
+      <div className="mt-4 grid grid-cols-2 gap-2 text-sm max-w-md mx-auto sm:flex sm:justify-center sm:space-x-3 sm:grid-cols-none">
+        {navItems.map((item) => {
+          const active = currentPath === item.path;
+          return (
+            <a
+              key={item.path}
+              href={item.path}
+              aria-current={active ? 'page' : undefined}
+              className={[
+                // 尺寸與排版：允許換行、但設最小高度，避免高度不齊
+                'px-3 py-2 rounded-full flex items-center justify-center text-center',
+                'whitespace-normal leading-tight min-h-[2.5rem] w-full sm:w-auto',
+                'transition transform duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-400',
+                // 狀態樣式
+                active
+                  ? 'bg-teal-500 text-white font-bold'
                   : 'bg-teal-100 text-teal-700 hover:bg-teal-200 hover:scale-105'
-              }`}
-          >
-            {item.name}
-          </a>
-        ))}
+              ].join(' ')}
+            >
+              {item.name}
+            </a>
+          );
+        })}
       </div>
     </div>
   );
