@@ -4,6 +4,10 @@ import Select from 'react-select';
 import Header from './components/Header';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
+import useRoster from '../hooks/useRoster';
+
+// 記住上次選的人（報表頁用自己的 key，避免跟日記頁混到）
+const LAST_REPORT_USER_ID_KEY = 'report:lastUserId';
 
 /** ===== 時區安全的日期工具（本地時區，不經 UTC） ===== */
 function formatDateLocal(date: Date) {
@@ -17,10 +21,6 @@ function parseLocalDateString(ymd: string) {
   return new Date(y,(m as number)-1,d as number);
 }
 
-/** ===== 型別 ===== */
-export type Option={label:string;value:string};
-type MetaResponse={ok:boolean;campId?:string|number;rosterVersion?:string;error?:string};
-
 /** ===== 常數／工具 ===== */
 const successTextList=[
   '回報完成！🎉🎉',
@@ -29,10 +29,14 @@ const successTextList=[
   '回報完成！太強了！🔥'
 ];
 
-export const toOptions=(names:string[]):Option[]=>names.map(n=>({label:n,value:n}));
-export const optionsEqual=(a:Option[],b:Option[])=>a.length===b.length&&a.every((o,i)=>o.value===b[i].value&&o.label===b[i].label);
-
 const getTaiwanTodayDateString=()=>formatDateLocal(new Date());
+
+// 讀網址參數（可沿用你現有的工具）
+function getQueryParam(name: string) {
+  const sp = new URLSearchParams(window.location.search);
+  return sp.get(name) || '';
+}
+const QUERY_USER_ID = getQueryParam('userId');  
 
 export default function DailyReportForm() {
   const today=getTaiwanTodayDateString();
@@ -40,19 +44,17 @@ export default function DailyReportForm() {
   // 營期起始（用本地解析）
   const CAMP_START_DATE=parseLocalDateString('2025-08-25');
 
-  const [userId,setUserId]=useState(()=>localStorage.getItem('userId')||'');
+  const [userId,setUserId]=useState(()=>localStorage.getItem(LAST_REPORT_USER_ID_KEY)||'');
   const [trainingDone,setTrainingDone]=useState(false);
   const [diaryDone,setDiaryDone]=useState(false);
   const [diaryText,setDiaryText]=useState('');
   const [submitting,setSubmitting]=useState(false);
   const [submitted,setSubmitted]=useState(false);
   const [successText,setSuccessText]=useState('');
-  const [nameOptions,setNameOptions]=useState<Option[]>([]);
+  const { options: nameOptions, loading: rosterLoading } = useRoster();
 
   const selectedOption=useMemo(()=>nameOptions.find(o=>o.value===userId)||null,[nameOptions,userId]);
 
-  const NAME_API_URL=`${import.meta.env.VITE_GAS_URL}?action=names`;
-  const META_API_URL=`${import.meta.env.VITE_GAS_URL}?action=meta`;
   const POST_API_URL=import.meta.env.VITE_REPORT_API_URL as string|undefined;
 
   // 簡化版 Toast
@@ -65,22 +67,6 @@ export default function DailyReportForm() {
   };
   const showSuccessToast=(m='提交成功！💪')=>triggerToast(m,'ok');
   const showErrorToast=(m:string)=>triggerToast(m,'err');
-
-  // 版本與 Meta（本地快取）
-  const FALLBACK_CAMP_ID='unknown';
-  const LAST_CAMP_ID_KEY='roster:lastCampId';
-  const CACHE_KEYS=(campId:string)=>({
-    names:`roster:${campId}:names`,
-    version:`roster:${campId}:version`,
-    updatedAt:`roster:${campId}:updatedAt`
-  });
-  const TTL_DAYS=7;
-  const daysSince=(ts:number)=>((Date.now()-ts)/86400000);
-
-  const setOptionsIfChanged=useCallback((names:string[])=>{
-    const next=toOptions(names);
-    setNameOptions(prev=>optionsEqual(prev,next)?prev:next);
-  },[]);
 
   const [selectedDate,setSelectedDate]=useState(today);
 
@@ -104,109 +90,39 @@ export default function DailyReportForm() {
     if(hasText) setDiaryDone(true);
   },[diaryText]);
 
-  // 名單快取 + 版本比對（含 AbortController）
-  useEffect(()=>{
-    const ctrl=new AbortController();
-    let isMounted=true;
 
-    if(!META_API_URL) console.warn('META_API_URL 未設定');
-    if(!NAME_API_URL) console.warn('NAME_API_URL 未設定');
+  // 名單載入後的預選與一致性（URL > 本地記憶），並校驗名單異動
+  useEffect(() => {
+    if (nameOptions.length === 0) return;
 
-    (async()=>{
-      let campId=localStorage.getItem(LAST_CAMP_ID_KEY)||FALLBACK_CAMP_ID;
-      let keys=CACHE_KEYS(campId);
-
-      try{
-        const cachedNames=localStorage.getItem(keys.names);
-        if(cachedNames){
-          const names:unknown=JSON.parse(cachedNames);
-          if(Array.isArray(names)&&isMounted) setOptionsIfChanged(names as string[]);
-        }
-      }catch(e){
-        console.warn('讀舊快取失敗（可忽略）：',e);
+    // 1) URL ?userId=（可為 value 或 label）→ 優先預選一次
+    if (!userId && QUERY_USER_ID) {
+      const found = nameOptions.find(o => o.value === QUERY_USER_ID || o.label === QUERY_USER_ID);
+      if (found) {
+        setUserId(found.value);
+        localStorage.setItem(LAST_REPORT_USER_ID_KEY, found.value);
+        return;
       }
-
-      try{
-        const metaRes=await fetch(META_API_URL!,{signal:ctrl.signal});
-        const ctype=metaRes.headers.get('content-type')||'';
-        if(!ctype.includes('application/json')){
-          console.warn('meta 非 JSON 回應');
-          return;
-        }
-        const meta=(await metaRes.json()) as MetaResponse;
-        if(!meta?.ok){
-          console.warn('meta 回傳非 ok：',meta?.error);
-          return;
-        }
-
-        campId=String(meta.campId||FALLBACK_CAMP_ID);
-        localStorage.setItem(LAST_CAMP_ID_KEY,campId);
-        keys=CACHE_KEYS(campId);
-
-        const serverVersion=String(meta.rosterVersion||'');
-        const localVersion=localStorage.getItem(keys.version)||'';
-        const localUpdatedAt=Number(localStorage.getItem(keys.updatedAt)||0);
-        const needTTLRefresh=!localUpdatedAt||daysSince(localUpdatedAt)>=TTL_DAYS;
-        const needUpdate=!!serverVersion&&serverVersion!==localVersion;
-
-        const cachedForCamp=localStorage.getItem(keys.names);
-        if(cachedForCamp&&isMounted){
-          try{
-            const names:unknown=JSON.parse(cachedForCamp);
-            if(Array.isArray(names)) setOptionsIfChanged(names as string[]);
-          }catch(e){
-            console.warn('解析 campId 快取失敗：',e);
-          }
-        }
-
-        if(needUpdate||needTTLRefresh||!cachedForCamp){
-          const namesRes=await fetch(NAME_API_URL!,{signal:ctrl.signal});
-          const ctype2=namesRes.headers.get('content-type')||'';
-          if(!ctype2.includes('application/json')){
-            console.warn('names 非 JSON 回應');
-            return;
-          }
-          const namesData:unknown=await namesRes.json();
-          if(Array.isArray(namesData)){
-            localStorage.setItem(keys.names,JSON.stringify(namesData));
-            localStorage.setItem(keys.version,serverVersion);
-            localStorage.setItem(keys.updatedAt,String(Date.now()));
-            if(isMounted){
-              setOptionsIfChanged(namesData as string[]);
-              if(needUpdate) showSuccessToast('名單已更新 ✅');
-            }
-          }else{
-            console.warn('namesData 非陣列：',namesData);
-          }
-        }else{
-          localStorage.setItem(keys.updatedAt,String(Date.now()));
-        }
-      }catch(e){
-        if((e as any)?.name!=='AbortError') console.error('比對 meta 或更新名單失敗：',e);
-      }
-    })();
-
-    return()=>{
-      isMounted=false;
-      ctrl.abort();
-      if(hideTimerRef.current) window.clearTimeout(hideTimerRef.current);
-    };
-  },[META_API_URL,NAME_API_URL,setOptionsIfChanged]);
-
-  // 名單變動時，同步/校驗 userId
-  useEffect(()=>{
-    if(nameOptions.length===0) return;
-    if(!userId){
-      const saved=localStorage.getItem('userId')||'';
-      if(saved&&nameOptions.some(o=>o.value===saved)) setUserId(saved);
-      return;
     }
-    if(!nameOptions.some(o=>o.value===userId)){
+
+    // 2) 沒有 URL → 用上次記住的 userId（value）
+    if (!userId && !QUERY_USER_ID) {
+      const saved = localStorage.getItem(LAST_REPORT_USER_ID_KEY) || '';
+      if (saved) {
+        const found = nameOptions.find(o => o.value === saved);
+        if (found) { setUserId(found.value); return; }
+        localStorage.removeItem(LAST_REPORT_USER_ID_KEY);
+      }
+    }
+
+    // 3) 名單異動：當前 userId 不存在 → 清空並提示
+    if (userId && !nameOptions.some(o => o.value === userId)) {
       setUserId('');
-      localStorage.removeItem('userId');
+      localStorage.removeItem(LAST_REPORT_USER_ID_KEY);
       showErrorToast('名單異動：原本的姓名已不在名單中，請重新選擇');
     }
-  },[nameOptions,userId]);
+  }, [nameOptions, userId]);
+
 
   const getValidationMessage=useCallback(()=>{
     const selected=parseLocalDateString(selectedDate);
@@ -238,18 +154,21 @@ export default function DailyReportForm() {
       showErrorToast('系統設定有誤：POST_API_URL 未設定');
       return;
     }
-
+  
     setSubmitting(true);
-
+  
+    // 這裡很關鍵：GAS 期望收到的是「顯示名稱」（label）
+    const displayName = selectedOption?.label || '';
+  
     const data={
-      userId,
+      userId: displayName,        // ← 原本是 userId（value），改成 label
       trainingDone,
       diaryDone,
       date:selectedDate,
       dayNumber,
       diaryText
     };
-
+  
     try{
       const response=await fetch(POST_API_URL,{
         method:'POST',
@@ -258,11 +177,11 @@ export default function DailyReportForm() {
       });
       const text=await response.text();
       const result=(text||'').trim();
-
+  
       const randomSuccess=successTextList[Math.floor(Math.random()*successTextList.length)];
       setSuccessText(randomSuccess);
       setSubmitted(true);
-
+  
       showSuccessToast(result.length>0?result:'回報成功！💪');
       resetAfterSuccess();
     }catch(err:any){
@@ -272,6 +191,7 @@ export default function DailyReportForm() {
       setSubmitting(false);
     }
   };
+  
 
   const yearsOptions=useMemo(()=>{
     const startYear=CAMP_START_DATE.getFullYear();
@@ -298,13 +218,15 @@ export default function DailyReportForm() {
             options={nameOptions}
             value={selectedOption}
             onChange={selected=>{
-              const id=selected?selected.value:'';
+              const id = selected ? selected.value : '';
               setUserId(id);
-              if(id) localStorage.setItem('userId',id);
-              else localStorage.removeItem('userId');
+              if (id) localStorage.setItem(LAST_REPORT_USER_ID_KEY, id);
+              else localStorage.removeItem(LAST_REPORT_USER_ID_KEY);
             }}
+            
             placeholder="請輸入或選擇姓名"
             className="text-sm"
+            isLoading={rosterLoading}
           />
         </div>
 
