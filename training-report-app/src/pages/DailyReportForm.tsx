@@ -1,338 +1,404 @@
-import { useEffect, useState } from 'react';
-import { FaDumbbell, FaBookOpen, FaCheckCircle } from 'react-icons/fa';
+import {useCallback,useMemo,useRef,useEffect,useState} from 'react';
+import {FaDumbbell,FaBookOpen,FaCheckCircle} from 'react-icons/fa';
 import Select from 'react-select';
 import Header from './components/Header';
-import DatePicker from "react-datepicker";
-import "react-datepicker/dist/react-datepicker.css";
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 
-
-function getTaiwanTodayDateString() {
-  const now = new Date();
-  const yyyy = now.getFullYear();
-  const mm = String(now.getMonth() + 1).padStart(2, '0');
-  const dd = String(now.getDate()).padStart(2, '0');
-  return `${yyyy}-${mm}-${dd}`;
+/** ===== 時區安全的日期工具（本地時區，不經 UTC） ===== */
+function formatDateLocal(date: Date) {
+  const y=date.getFullYear();
+  const m=String(date.getMonth()+1).padStart(2,'0');
+  const d=String(date.getDate()).padStart(2,'0');
+  return `${y}-${m}-${d}`;
+}
+function parseLocalDateString(ymd: string) {
+  const [y,m,d]=ymd.split('-').map(Number);
+  return new Date(y,(m as number)-1,d as number);
 }
 
+/** ===== 型別 ===== */
+export type Option={label:string;value:string};
+type MetaResponse={ok:boolean;campId?:string|number;rosterVersion?:string;error?:string};
+
+/** ===== 常數／工具 ===== */
+const successTextList=[
+  '回報完成！🎉🎉',
+  '回報完成！今天的你很棒👏',
+  '回報完成！給自己一個大大的讚👍',
+  '回報完成！太強了！🔥'
+];
+
+export const toOptions=(names:string[]):Option[]=>names.map(n=>({label:n,value:n}));
+export const optionsEqual=(a:Option[],b:Option[])=>a.length===b.length&&a.every((o,i)=>o.value===b[i].value&&o.label===b[i].label);
+
+const getTaiwanTodayDateString=()=>formatDateLocal(new Date());
+
 export default function DailyReportForm() {
-  const today = getTaiwanTodayDateString();
+  const today=getTaiwanTodayDateString();
 
-  const [userId, setUserId] = useState("");
-  const [trainingDone, setTrainingDone] = useState(false);
-  const [diaryDone, setDiaryDone] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
-  const [nameOptions, setNameOptions] = useState<{ label: string; value: string }[]>([]);
-  const [diaryText, setDiaryText] = useState("");
+  // 營期起始（用本地解析）
+  const CAMP_START_DATE=parseLocalDateString('2025-08-25');
 
-  const [selectedDate, setSelectedDate] = useState(today);
-  const CAMP_START_DATE = new Date("2025-08-25");
-  const calculateDayNumber = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return Math.floor((date.getTime() - CAMP_START_DATE.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+  const [userId,setUserId]=useState(()=>localStorage.getItem('userId')||'');
+  const [trainingDone,setTrainingDone]=useState(false);
+  const [diaryDone,setDiaryDone]=useState(false);
+  const [diaryText,setDiaryText]=useState('');
+  const [submitting,setSubmitting]=useState(false);
+  const [submitted,setSubmitted]=useState(false);
+  const [successText,setSuccessText]=useState('');
+  const [nameOptions,setNameOptions]=useState<Option[]>([]);
+
+  const selectedOption=useMemo(()=>nameOptions.find(o=>o.value===userId)||null,[nameOptions,userId]);
+
+  const NAME_API_URL=`${import.meta.env.VITE_GAS_URL}?action=names`;
+  const META_API_URL=`${import.meta.env.VITE_GAS_URL}?action=meta`;
+  const POST_API_URL=import.meta.env.VITE_REPORT_API_URL as string|undefined;
+
+  // 簡化版 Toast
+  const [toast,setToast]=useState<{text:string;kind:'ok'|'err'|null}>({text:'',kind:null});
+  const hideTimerRef=useRef<number|null>(null);
+  const triggerToast=(text:string,kind:'ok'|'err')=>{
+    setToast({text,kind});
+    if(hideTimerRef.current) window.clearTimeout(hideTimerRef.current);
+    hideTimerRef.current=window.setTimeout(()=>setToast({text:'',kind:null}),2200);
   };
-  const dayNumber = calculateDayNumber(selectedDate);
-  const isRestDay = dayNumber % 7 === 0;
+  const showSuccessToast=(m='提交成功！💪')=>triggerToast(m,'ok');
+  const showErrorToast=(m:string)=>triggerToast(m,'err');
 
-  const NAME_API_URL = `${import.meta.env.VITE_GAS_URL}?action=names`;
-  const POST_API_URL = import.meta.env.VITE_REPORT_API_URL;
-  const [showToast, setShowToast] = useState(false);
-  const [toastVisible, setToastVisible] = useState(false);
-  const [toastMessage, setToastMessage] = useState("");
-  
-  const getValidationMessage = () => {
-    const selected = new Date(selectedDate);
-    const todayDate = new Date(today);  
-    if (!userId) return "請先選擇您的名字";
-    if (selected < CAMP_START_DATE) return "營隊作業從 08/25 才開始喔!";
-    if (selected > todayDate) return "不能選擇未來的日期喔！";
-    if (!isRestDay && !trainingDone && !diaryDone) return "至少要完成訓練或日記其中一項喔!💪";
-    if (isRestDay && !diaryDone) return "健心日，好好覺察自己的內心 📝";
+  // 版本與 Meta（本地快取）
+  const FALLBACK_CAMP_ID='unknown';
+  const LAST_CAMP_ID_KEY='roster:lastCampId';
+  const CACHE_KEYS=(campId:string)=>({
+    names:`roster:${campId}:names`,
+    version:`roster:${campId}:version`,
+    updatedAt:`roster:${campId}:updatedAt`
+  });
+  const TTL_DAYS=7;
+  const daysSince=(ts:number)=>((Date.now()-ts)/86400000);
 
-    return "";
-  };
-  const validationMessage = getValidationMessage();
+  const setOptionsIfChanged=useCallback((names:string[])=>{
+    const next=toOptions(names);
+    setNameOptions(prev=>optionsEqual(prev,next)?prev:next);
+  },[]);
 
-  const successTextList = [
-    "回報完成！🎉🎉",
-    "回報完成！今天的你很棒👏",
-    "回報完成！給自己一個大大的讚👍",
-    "回報完成！太強了！🔥"
-  ];
-  const [successText, setSuccessText] = useState("");
-  
+  const [selectedDate,setSelectedDate]=useState(today);
 
-  useEffect(() => {
-    fetch(NAME_API_URL)
-      .then((res) => res.json())
-      .then((data) => {
-        if (Array.isArray(data)) {
-          const options = data.map((name) => ({ label: name, value: name }));
-          setNameOptions(options);
+  const calculateDayNumber=useCallback((dateStr:string)=>{
+    const date=parseLocalDateString(dateStr);
+    const start=parseLocalDateString(formatDateLocal(CAMP_START_DATE));
+    return Math.floor((date.getTime()-start.getTime())/86400000)+1;
+  },[CAMP_START_DATE]);
+
+  const dayNumber=useMemo(()=>calculateDayNumber(selectedDate),[calculateDayNumber,selectedDate]);
+  const isRestDay=dayNumber%7===0;
+
+  // 防止休息日殘留訓練勾選
+  useEffect(()=>{
+    if(isRestDay&&trainingDone) setTrainingDone(false);
+  },[isRestDay,trainingDone]);
+
+  // 有輸入日記時，自動把日記完成設為 true（若要完全同步可改為 setDiaryDone(hasText)）
+  useEffect(()=>{
+    const hasText=diaryText.trim().length>0;
+    if(hasText) setDiaryDone(true);
+  },[diaryText]);
+
+  // 名單快取 + 版本比對（含 AbortController）
+  useEffect(()=>{
+    const ctrl=new AbortController();
+    let isMounted=true;
+
+    if(!META_API_URL) console.warn('META_API_URL 未設定');
+    if(!NAME_API_URL) console.warn('NAME_API_URL 未設定');
+
+    (async()=>{
+      let campId=localStorage.getItem(LAST_CAMP_ID_KEY)||FALLBACK_CAMP_ID;
+      let keys=CACHE_KEYS(campId);
+
+      try{
+        const cachedNames=localStorage.getItem(keys.names);
+        if(cachedNames){
+          const names:unknown=JSON.parse(cachedNames);
+          if(Array.isArray(names)&&isMounted) setOptionsIfChanged(names as string[]);
         }
-      })
-      .catch((err) => console.error("名單載入失敗：", err));
-  }, []);
+      }catch(e){
+        console.warn('讀舊快取失敗（可忽略）：',e);
+      }
 
-  const showSuccessToast = (message: string = "提交成功！💪") => {
-    setToastMessage(message);
-    setSubmitted(true);
-    setShowToast(true);
-    setTimeout(() => setToastVisible(true), 50);
-    setTimeout(() => {
-      setToastVisible(false);
-      setTimeout(() => setShowToast(false), 300);
-    }, 2000);
-  };
-  
-  const showErrorToast = (message: string) => {
-    setToastMessage(message);
-    setSubmitted(false);
-    setShowToast(true);
-    setTimeout(() => setToastVisible(true), 50);
-    setTimeout(() => {
-      setToastVisible(false);
-      setTimeout(() => setShowToast(false), 300);
-    }, 2000);
-  };
-  
-  
-  const handleSubmit = async () => {
-    const errorMessage = getValidationMessage();
-    if (errorMessage) {
-      showErrorToast("⚠️ 回報失敗：" + errorMessage);
+      try{
+        const metaRes=await fetch(META_API_URL!,{signal:ctrl.signal});
+        const ctype=metaRes.headers.get('content-type')||'';
+        if(!ctype.includes('application/json')){
+          console.warn('meta 非 JSON 回應');
+          return;
+        }
+        const meta=(await metaRes.json()) as MetaResponse;
+        if(!meta?.ok){
+          console.warn('meta 回傳非 ok：',meta?.error);
+          return;
+        }
+
+        campId=String(meta.campId||FALLBACK_CAMP_ID);
+        localStorage.setItem(LAST_CAMP_ID_KEY,campId);
+        keys=CACHE_KEYS(campId);
+
+        const serverVersion=String(meta.rosterVersion||'');
+        const localVersion=localStorage.getItem(keys.version)||'';
+        const localUpdatedAt=Number(localStorage.getItem(keys.updatedAt)||0);
+        const needTTLRefresh=!localUpdatedAt||daysSince(localUpdatedAt)>=TTL_DAYS;
+        const needUpdate=!!serverVersion&&serverVersion!==localVersion;
+
+        const cachedForCamp=localStorage.getItem(keys.names);
+        if(cachedForCamp&&isMounted){
+          try{
+            const names:unknown=JSON.parse(cachedForCamp);
+            if(Array.isArray(names)) setOptionsIfChanged(names as string[]);
+          }catch(e){
+            console.warn('解析 campId 快取失敗：',e);
+          }
+        }
+
+        if(needUpdate||needTTLRefresh||!cachedForCamp){
+          const namesRes=await fetch(NAME_API_URL!,{signal:ctrl.signal});
+          const ctype2=namesRes.headers.get('content-type')||'';
+          if(!ctype2.includes('application/json')){
+            console.warn('names 非 JSON 回應');
+            return;
+          }
+          const namesData:unknown=await namesRes.json();
+          if(Array.isArray(namesData)){
+            localStorage.setItem(keys.names,JSON.stringify(namesData));
+            localStorage.setItem(keys.version,serverVersion);
+            localStorage.setItem(keys.updatedAt,String(Date.now()));
+            if(isMounted){
+              setOptionsIfChanged(namesData as string[]);
+              if(needUpdate) showSuccessToast('名單已更新 ✅');
+            }
+          }else{
+            console.warn('namesData 非陣列：',namesData);
+          }
+        }else{
+          localStorage.setItem(keys.updatedAt,String(Date.now()));
+        }
+      }catch(e){
+        if((e as any)?.name!=='AbortError') console.error('比對 meta 或更新名單失敗：',e);
+      }
+    })();
+
+    return()=>{
+      isMounted=false;
+      ctrl.abort();
+      if(hideTimerRef.current) window.clearTimeout(hideTimerRef.current);
+    };
+  },[META_API_URL,NAME_API_URL,setOptionsIfChanged]);
+
+  // 名單變動時，同步/校驗 userId
+  useEffect(()=>{
+    if(nameOptions.length===0) return;
+    if(!userId){
+      const saved=localStorage.getItem('userId')||'';
+      if(saved&&nameOptions.some(o=>o.value===saved)) setUserId(saved);
       return;
     }
-    
+    if(!nameOptions.some(o=>o.value===userId)){
+      setUserId('');
+      localStorage.removeItem('userId');
+      showErrorToast('名單異動：原本的姓名已不在名單中，請重新選擇');
+    }
+  },[nameOptions,userId]);
+
+  const getValidationMessage=useCallback(()=>{
+    const selected=parseLocalDateString(selectedDate);
+    const todayDate=parseLocalDateString(today);
+    if(!userId) return '請先選擇您的名字';
+    if(selected<CAMP_START_DATE) return '營隊作業從 08/25 才開始喔!';
+    if(selected>todayDate) return '不能選擇未來的日期喔！';
+    if(!isRestDay&&!trainingDone&&!diaryDone) return '至少要完成訓練或日記其中一項喔!💪';
+    if(isRestDay&&!diaryDone) return '健心日，好好覺察自己的內心 📝';
+    return '';
+  },[userId,selectedDate,today,CAMP_START_DATE,isRestDay,trainingDone,diaryDone]);
+
+  const validationMessage=useMemo(()=>getValidationMessage(),[getValidationMessage]);
+
+  const resetAfterSuccess=()=>{
+    setTrainingDone(false);
+    setDiaryDone(false);
+    setDiaryText('');
+    setSelectedDate(today);
+  };
+
+  const handleSubmit=async()=>{
+    const errorMessage=getValidationMessage();
+    if(errorMessage){
+      showErrorToast('⚠️ 回報失敗：'+errorMessage);
+      return;
+    }
+    if(!POST_API_URL){
+      showErrorToast('系統設定有誤：POST_API_URL 未設定');
+      return;
+    }
+
     setSubmitting(true);
 
-    const data = {
+    const data={
       userId,
       trainingDone,
       diaryDone,
-      date: selectedDate,
-      dayNumber: dayNumber,
-      diaryText,
+      date:selectedDate,
+      dayNumber,
+      diaryText
     };
 
-    try {
-      const response = await fetch(POST_API_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(data),
+    try{
+      const response=await fetch(POST_API_URL,{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify(data)
       });
+      const text=await response.text();
+      const result=(text||'').trim();
 
-      const result = (await response.text()).trim();
-      
-      const randomSuccess = successTextList[Math.floor(Math.random() * successTextList.length)];
+      const randomSuccess=successTextList[Math.floor(Math.random()*successTextList.length)];
       setSuccessText(randomSuccess);
       setSubmitted(true);
-  
-      showSuccessToast(result.length > 0 ? result : "回報成功！💪");  
-    } catch (err: any) {
-      console.error("送出錯誤", err);
-      alert("送出失敗：" + err.message);
-    } finally {
+
+      showSuccessToast(result.length>0?result:'回報成功！💪');
+      resetAfterSuccess();
+    }catch(err:any){
+      console.error('送出錯誤',err);
+      showErrorToast('送出失敗：'+(err?.message||'未知錯誤'));
+    }finally{
       setSubmitting(false);
     }
   };
 
+  const yearsOptions=useMemo(()=>{
+    const startYear=CAMP_START_DATE.getFullYear();
+    const endYear=parseLocalDateString(today).getFullYear();
+    const arr:number[]=[];
+    for(let y=startYear;y<=endYear;y++) arr.push(y);
+    return arr;
+  },[CAMP_START_DATE,today]);
+
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8 flex flex-col items-center justify-start">
-      <Header />
-      {showToast && (
-        <div className={`fixed top-4 left-1/2 transform -translate-x-1/2 px-4 py-2 rounded-lg shadow-lg z-50
-          bg-teal-500 text-white transition-all duration-300 ease-out
-          ${toastVisible ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-2"}
-                      `}>
-          {toastMessage}
+      <Header/>
+      {toast.kind&&(
+        <div className={`fixed top-4 left-1/2 -translate-x-1/2 px-4 py-2 rounded-lg shadow-lg z-50 text-white transition-opacity duration-300 ${toast.kind==='ok'?'bg-teal-500':'bg-rose-500'}`}>
+          {toast.text}
         </div>
       )}
+
       <div className="max-w-md w-full bg-white shadow-xl rounded-2xl p-6 space-y-6">
         {/* 選擇姓名 */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">選擇您的名字</label>
           <Select
             options={nameOptions}
-            value={nameOptions.find((option) => option.value === userId) || null}
-            onChange={(selected) => {
-              const id = selected ? selected.value : "";
+            value={selectedOption}
+            onChange={selected=>{
+              const id=selected?selected.value:'';
               setUserId(id);
-              if (id) {
-                localStorage.setItem('userId', id);
-              } else {
-                localStorage.removeItem('userId');
-              }
+              if(id) localStorage.setItem('userId',id);
+              else localStorage.removeItem('userId');
             }}
             placeholder="請輸入或選擇姓名"
             className="text-sm"
           />
         </div>
 
-        
         {/* 選擇日期 */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">選擇回報日期</label>
           <DatePicker
-            renderCustomHeader={({
-              date,
-              changeYear,
-              changeMonth,
-              decreaseMonth,
-              increaseMonth,
-              prevMonthButtonDisabled,
-              nextMonthButtonDisabled
-            }) => (
-            <div className="flex justify-between items-center px-4 py-2 bg-gray-50 border-b border-gray-200 rounded-t-lg text-gray-700">
-              {/* 上一個月按鈕 */}
-              <button
-                onClick={decreaseMonth}
-                disabled={prevMonthButtonDisabled}
-                className="px-2 py-1 text-sm hover:bg-gray-200 rounded disabled:opacity-30"
-              >
-                ‹
-              </button>
-          
-              {/* 月份 + 年份下拉 */}
-              <div className="flex items-center space-x-2">
-                <select
-                  value={date.getFullYear()}
-                  onChange={({ target: { value } }) => changeYear(Number(value))}
-                  className="bg-white border border-gray-300 rounded px-2 py-1 text-sm"
-                >
-                  {[...Array(5)].map((_, i) => {
-                    const year = new Date().getFullYear() - 2 + i;
-                    return <option key={year} value={year}>{year}</option>;
-                  })}
-                </select>
-          
-                <select
-                  value={date.getMonth()}
-                  onChange={({ target: { value } }) => changeMonth(Number(value))}
-                  className="bg-white border border-gray-300 rounded px-2 py-1 text-sm"
-                >
-                  {["1月","2月","3月","4月","5月","6月","7月","8月","9月","10月","11月","12月"].map((month, index) => (
-                    <option key={index} value={index}>{month}</option>
-                  ))}
-                </select>
+            renderCustomHeader={({date,changeYear,changeMonth,decreaseMonth,increaseMonth,prevMonthButtonDisabled,nextMonthButtonDisabled})=>(
+              <div className="flex justify-between items-center px-4 py-2 bg-gray-50 border-b border-gray-200 rounded-t-lg text-gray-700">
+                <button onClick={decreaseMonth} disabled={prevMonthButtonDisabled} className="px-2 py-1 text-sm hover:bg-gray-200 rounded disabled:opacity-30">‹</button>
+                <div className="flex items-center space-x-2">
+                  <select value={date.getFullYear()} onChange={({target:{value}})=>changeYear(Number(value))} className="bg-white border border-gray-300 rounded px-2 py-1 text-sm">
+                    {yearsOptions.map(y=><option key={y} value={y}>{y}</option>)}
+                  </select>
+                  <select value={date.getMonth()} onChange={({target:{value}})=>changeMonth(Number(value))} className="bg-white border border-gray-300 rounded px-2 py-1 text-sm">
+                    {['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'].map((m,i)=><option key={i} value={i}>{m}</option>)}
+                  </select>
+                </div>
+                <button onClick={increaseMonth} disabled={nextMonthButtonDisabled} className="px-2 py-1 text-sm hover:bg-gray-200 rounded disabled:opacity-30">›</button>
               </div>
-          
-              {/* 下一個月按鈕 */}
-              <button
-                onClick={increaseMonth}
-                disabled={nextMonthButtonDisabled}
-                className="px-2 py-1 text-sm hover:bg-gray-200 rounded disabled:opacity-30"
-              >
-                ›
-              </button>
-            </div>
             )}
-            
-            /* 日期選擇邏輯 */
-            selected={new Date(selectedDate)}
-            onChange={(date: Date | null) => {
-              if (date) {
-                const formatted = date.toISOString().split("T")[0];
-                setSelectedDate(formatted);
-              }
-            }}
-            minDate={CAMP_START_DATE} // ✅ 限制不可選營隊前的日期
-            maxDate={new Date(today)}// ✅ 限制不可選未來日期
+            selected={parseLocalDateString(selectedDate)}
+            onChange={(date:Date|null)=>{if(date) setSelectedDate(formatDateLocal(date));}}
+            minDate={CAMP_START_DATE}
+            maxDate={parseLocalDateString(today)}
             className="w-full border border-gray-300 rounded-lg px-3 py-2"
             calendarClassName="bg-white rounded-lg shadow-xl border border-gray-200 p-2"
-            
             dateFormat="yyyy-MM-dd"
             placeholderText="請選擇回報日期"
           />
           <p className="text-xs text-gray-500 mt-1">營隊第 {dayNumber} 天</p>
         </div>
 
-
         {/* 今天有完成訓練 */}
-        {!isRestDay ? (
+        {!isRestDay?(
           <div className="flex items-center space-x-3">
-            <FaDumbbell className="text-teal-600 text-xl" />
-            <label className="flex items-center text-gray-700">
-              <input
-                type="checkbox"
-                className="mr-2"
-                checked={trainingDone}
-                onChange={(e) => setTrainingDone(e.target.checked)}
-              />
+            <FaDumbbell className="text-teal-600 text-xl"/>
+            <label htmlFor="trainingDone" className="flex items-center text-gray-700 cursor-pointer">
+              <input id="trainingDone" type="checkbox" className="mr-2" checked={trainingDone} onChange={e=>setTrainingDone(e.target.checked)}/>
               今天有完成訓練
             </label>
           </div>
-        ) : (
+        ):(
           <div className="flex items-center space-x-3 text-gray-500">
-            <FaDumbbell className="text-teal-400 text-xl" />
+            <FaDumbbell className="text-teal-400 text-xl"/>
             <span className="italic">今天是健心休息日，請好好休息 💤</span>
           </div>
         )}
 
         {/* 今天有寫日記 */}
         <div className="flex items-center space-x-3">
-          <FaBookOpen className="text-teal-600 text-xl" />
-          <label className="flex items-center text-gray-700">
-            <input
-              type="checkbox"
-              className="mr-2"
-              checked={diaryDone}
-              onChange={(e) => setDiaryDone(e.target.checked)}
-            />
+          <FaBookOpen className="text-teal-600 text-xl"/>
+          <label htmlFor="diaryDone" className="flex items-center text-gray-700 cursor-pointer">
+            <input id="diaryDone" type="checkbox" className="mr-2" checked={diaryDone} onChange={e=>setDiaryDone(e.target.checked)}/>
             今天有寫覺察日記
           </label>
         </div>
+
         {/* 覺察日記區塊 */}
         <div className="space-y-2">
-          <label htmlFor="diaryText" className="block text-sm font-medium text-gray-700 mb-1">
-            今日覺察日記 
-          </label>
+          <label htmlFor="diaryText" className="block text-sm font-medium text-gray-700 mb-1">今日覺察日記</label>
           <textarea
             id="diaryText"
             rows={6}
             value={diaryText}
             maxLength={150}
-            onChange={(e) => setDiaryText(e.target.value)}
+            onChange={e=>setDiaryText(e.target.value)}
             placeholder="在這裡記錄您今天的感受、覺察和反思..."
             className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-400 focus:border-transparent text-sm transition duration-150 resize-none"
           />
-          <p className={`text-xs text-right mt-1 ${diaryText.length > 120 ? "text-red-500" : "text-gray-500"}`}>
-            {diaryText.length}/150 
-          </p>
-
-          {/* <p className="text-xs text-gray-500 mt-1">
-            {isRestDay ? 
-              "今天是健心日，記錄下您對自己內心的覺察" : 
-              "記錄下您今天的訓練心得和覺察"}
-          </p>*/}
+          <p className={`text-xs text-right mt-1 ${diaryText.length>120?'text-red-500':'text-gray-500'}`}>{diaryText.length}/150</p>
         </div>
 
-        {/* 提交按鈕 */}
+        {/* 提交按鈕（disabled 僅依必填條件 userId；其他交由 handleSubmit 統一提示） */}
         <button
           onClick={handleSubmit}
-          disabled={submitting || !userId || (!trainingDone && !diaryDone)}
+          disabled={submitting||!userId}
           className="w-full flex justify-center items-center bg-teal-500 hover:bg-teal-600 text-white font-bold py-2 px-4 rounded-xl transition duration-150 disabled:opacity-50"
         >
-          <FaCheckCircle className="mr-2" />
-          {submitting ? '奔跑提交中...' : '提交回報'}
+          <FaCheckCircle className="mr-2"/>
+          {submitting?'奔跑提交中...':'提交回報'}
         </button>
-        
-        {/* 錯誤提示 */}
-        {validationMessage && (
-          <p className="text-sm text-teal-500 mt-2 text-center">
-            {validationMessage}
-          </p>
+
+        {/* 驗證提示 */}
+        {validationMessage&&(
+          <p className="text-sm text-teal-500 mt-2 text-center">{validationMessage}</p>
         )}
+
         {/* 成功提示 */}
-        {submitted && (
+        {submitted&&(
           <div className="flex flex-col items-center justify-center mt-6">
-            <FaCheckCircle className="text-green-500 text-4xl animate-bounce" />
-            <p className="text-green-600 text-center font-semibold mt-2">
-              {successText}
-            </p>
-         </div>
+            <FaCheckCircle className="text-green-500 text-4xl animate-bounce"/>
+            <p className="text-green-600 text-center font-semibold mt-2">{successText}</p>
+          </div>
         )}
       </div>
     </div>

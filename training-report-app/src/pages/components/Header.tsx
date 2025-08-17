@@ -8,6 +8,7 @@ export default function Header() {
     { name: '每日回報', path: '/report' },
     { name: '進度總表', path: '/progress' },
     { name: '動作升級中心', path: '/movement' },
+    { name: '覺察日記', path: '/diary' },
   ];
 
   return (
