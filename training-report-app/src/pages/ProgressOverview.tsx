@@ -133,7 +133,7 @@ export default function ProgressOverview() {
                     <th className="px-2 py-1 border w-20 text-center">點數</th>
                     {visibleThemes.map((t, i) => (
                       <th key={i} colSpan={3} className="px-2 py-1 border text-center">
-                        第{i+1}週:{t.title.replace(/-\d$/, '')}
+                        第{t.week}週:{t.title.replace(/-\d$/, '')}
                       </th>
                     ))}
                   </tr>
