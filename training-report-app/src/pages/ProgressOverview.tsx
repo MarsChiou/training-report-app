@@ -147,6 +147,8 @@ export default function ProgressOverview() {
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
   const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
   const didAutoPickWeekRef = useRef(false);
+  const didRestoreUserRef = useRef(false);
+
   // 載入狀態
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
@@ -278,16 +280,24 @@ export default function ProgressOverview() {
     didAutoPickWeekRef.current = true;                      // 標記已嘗試（不論是否成功）
   }, [themeData.weekThemes]);
 
-  /** ========== 記住上次查過的人（可行且開銷極小） ========== */
+  /** ========== 記住上次查過的人（只自動恢復一次；清除時刪記錄） ========== */
   const LAST_PROGRESS_USER_KEY = 'progress:lastUserName';
   useEffect(() => {
     if (data.length === 0) return;
+
     if (!selectedUser) {
-      const saved = localStorage.getItem(LAST_PROGRESS_USER_KEY) || '';
-      if (saved && data.some(u => u.nickname === saved)) {
-        setSelectedUser(saved);
+      if (!didRestoreUserRef.current) {
+        const saved = localStorage.getItem(LAST_PROGRESS_USER_KEY) || '';
+        if (saved && data.some(u => u.nickname === saved)) {
+          setSelectedUser(saved);
+        }
+        didRestoreUserRef.current = true;         // 之後不再自動恢復
+      } else {
+        // 使用者主動清除了選擇 → 把記錄清掉，保持為空
+        localStorage.removeItem(LAST_PROGRESS_USER_KEY);
       }
     } else {
+      // 有選到人就更新記錄
       localStorage.setItem(LAST_PROGRESS_USER_KEY, selectedUser);
     }
   }, [data, selectedUser]);
