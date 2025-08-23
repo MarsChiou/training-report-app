@@ -380,7 +380,7 @@ export default function MovementLibrary() {
                   navigate(url, { replace: true });
                 }}
                 placeholder="請輸入或選擇主題"
-                isSearchable
+                isSearchable={false}
                 isClearable
                 className="mb-4 text-sm sm:text-base"
                 classNamePrefix="react-select"
