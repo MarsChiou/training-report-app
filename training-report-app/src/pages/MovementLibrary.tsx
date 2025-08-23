@@ -91,12 +91,6 @@ const FALLBACK_TYPE_LABELS: Record<string, string> = {
   mt_climb: '登山',
 };
 
-/** ========= 讀取 URL 參數 ========= */
-function getQueryParam(name: string) {
-  const sp = new URLSearchParams(window.location.search);
-  return sp.get(name) || '';
-}
-
 export default function MovementLibrary() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
