@@ -1,5 +1,5 @@
 // pages/MovementLibrary.tsx
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import Header from './components/Header';
 import MovementCard from './components/MovementCard';
 import Select from 'react-select';
@@ -25,15 +25,28 @@ function splitContentToSteps(content?: string): string[] {
 function LazyImage({ src, alt }: { src: string; alt: string }) {
   const [loaded, setLoaded] = useState(false);
   const [errorFallback, setErrorFallback] = useState(false);
-
-    // ✅ src 有變就重置狀態
-    useEffect(() => {
-      setLoaded(false);
-      setErrorFallback(false);
-    }, [src]);
+  const imgRef = useRef<HTMLImageElement | null>(null);
 
   const effectiveSrc =
     src && src.trim().length > 0 ? src : '/theme-images/default.png';
+
+  // src 有變更時重置狀態，並處理「已快取」的情況
+  useEffect(() => {
+    setLoaded(false);
+    setErrorFallback(false);
+
+    // 若圖片已在快取且瀏覽器已解碼完成，不會再觸發 onLoad
+    // 這裡直接把 loaded 設為 true，避免一直顯示「載入中」
+    // (等下一個 tick 拿到最新的 imgRef)
+    const t = requestAnimationFrame(() => {
+      const img = imgRef.current;
+      if (img && img.complete && img.naturalWidth > 0) {
+        setLoaded(true);
+      }
+    });
+    return () => cancelAnimationFrame(t);
+  }, [effectiveSrc]);
+
   return (
     <div className="relative w-full max-w-md">
       {!loaded && !errorFallback && (
@@ -42,18 +55,23 @@ function LazyImage({ src, alt }: { src: string; alt: string }) {
         </div>
       )}
       <img
+        key={effectiveSrc}               // 確保切換同一路徑時也會重新評估
+        ref={imgRef}
         src={errorFallback ? '/theme-images/default.png' : effectiveSrc}
         alt={alt}
+        // 主視覺建議不要 lazy，避免事件延遲（卡片內可保留 lazy）
+        // loading="lazy"
+        decoding="async"
         onLoad={() => setLoaded(true)}
         onError={() => { setErrorFallback(true); setLoaded(true); }}
-        loading="lazy"
-        className={`rounded-lg shadow-md transition-opacity duration-700 ease-in ${
+        className={`rounded-lg shadow-md transition-opacity duration-300 ease-in ${
           loaded ? 'opacity-100' : 'opacity-0'
         }`}
       />
     </div>
   );
 }
+
 
 /** ========= 既有前端使用的型別（保持不變） ========= */
 interface MovementData {
