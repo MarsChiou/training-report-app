@@ -55,7 +55,11 @@ export default function DailyReportForm() {
 
   const selectedOption=useMemo(()=>nameOptions.find(o=>o.value===userId)||null,[nameOptions,userId]);
 
+
+  const AWS_BASE_URL = import.meta.env.VITE_AWS_BASE_URL as string | undefined;
+  //PostAPI是舊版 FirebasFunction, 暫時保留備用
   const POST_API_URL=import.meta.env.VITE_REPORT_API_URL as string|undefined;
+
 
   // 簡化版 Toast
   const [toast,setToast]=useState<{text:string;kind:'ok'|'err'|null}>({text:'',kind:null});
@@ -150,8 +154,10 @@ export default function DailyReportForm() {
       showErrorToast('⚠️ 回報失敗：'+errorMessage);
       return;
     }
-    if(!POST_API_URL){
-      showErrorToast('系統設定有誤：POST_API_URL 未設定');
+    // 選擇目標：優先用 AWS，否則回退 GAS
+    const useAWS = !!AWS_BASE_URL;
+    if (!useAWS && !POST_API_URL) {
+      showErrorToast('系統設定有誤：未設定可用的回報 API');
       return;
     }
   
@@ -159,35 +165,84 @@ export default function DailyReportForm() {
   
     // 這裡很關鍵：GAS 期望收到的是「顯示名稱」（label）
     const displayName = selectedOption?.label || '';
-  
+    const valueId = userId; // 給 AWS 用
+    if (useAWS && !valueId) {
+      showErrorToast('請先選擇您的名字');
+      setSubmitting(false);
+      return;
+    }
+
+    // 組 AWS payload
+    const awsPayload = {
+      date: selectedDate,
+      movement_completed: trainingDone,
+      diary_completed: diaryDone,
+      diary_content: (diaryText || '').slice(0, 150).trim(),
+    };
+    
+    //GAS 版本
     const data={
-      userId: displayName,        // ← 原本是 userId（value），改成 label
+      userId: displayName,        
       trainingDone,
       diaryDone,
       date:selectedDate,
       dayNumber,
-      diaryText
+      diaryText: (diaryText || '').slice(0, 150).trim(),
     };
   
-    try{
-      const response=await fetch(POST_API_URL,{
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify(data)
+    // 超時保護
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), 10000); // 10s
+
+    try {
+      const url = useAWS
+        ? `${AWS_BASE_URL!.replace(/\/+$/, '')}/users/${encodeURIComponent(valueId)}/check-in`
+        : POST_API_URL!;
+
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          // 若你的其他 AWS 頁面有帶驗證（例如 Authorization），這裡照抄：
+          // 'Authorization': `Bearer ${yourToken}`,
+        },
+        body: JSON.stringify(useAWS ? awsPayload : data),
+        signal: controller.signal,
       });
-      const text=await response.text();
-      const result=(text||'').trim();
-  
-      const randomSuccess=successTextList[Math.floor(Math.random()*successTextList.length)];
+
+      // 嘗試解析回應（文字或 JSON 都能顯示）
+      let msg = '';
+      const ct = res.headers.get('content-type') || '';
+      if (ct.includes('application/json')) {
+        const j = await res.json().catch(() => ({}));
+        msg = (j?.message || j?.msg || '') as string;
+      } else {
+        msg = (await res.text()).trim();
+      }
+
+      if (!res.ok) {
+        throw new Error(msg || `HTTP ${res.status}`);
+      }
+
+      const randomSuccess = successTextList[Math.floor(Math.random() * successTextList.length)];
       setSuccessText(randomSuccess);
       setSubmitted(true);
-  
-      showSuccessToast(result.length>0?result:'回報成功！💪');
+      if (msg && msg !== 'OK') {
+        showSuccessToast(msg);
+      } else {
+        showSuccessToast('回報成功！💪');
+      }
+      
       resetAfterSuccess();
-    }catch(err:any){
-      console.error('送出錯誤',err);
-      showErrorToast('送出失敗：'+(err?.message||'未知錯誤'));
-    }finally{
+    } catch (err: any) {
+      console.error('送出錯誤', err);
+      if (err?.name === 'AbortError') {
+        showErrorToast('送出逾時，請稍後再試');
+      } else {
+        showErrorToast('送出失敗：' + (err?.message || '未知錯誤'));
+      }
+    } finally {
+      window.clearTimeout(timer);
       setSubmitting(false);
     }
   };

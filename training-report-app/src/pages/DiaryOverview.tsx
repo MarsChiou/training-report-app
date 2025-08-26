@@ -33,6 +33,12 @@ function daysDiff(a:string,b:string){
 type DiaryEntry={date:string;dayNumber:number;diaryText:string};
 type DiaryApiResponse={ok:boolean;entries:DiaryEntry[];error?:string};
 
+/** ===== AWS Diary Response Types ===== */
+type AwsDiaryItem = { date: string; content?: string };
+type AwsDiaryData = { id: string; name?: string; diary?: AwsDiaryItem[] };
+type AwsDiaryResponse = { code: number; message?: string; data?: AwsDiaryData };
+
+
 /** ===== 營期設定（與 Header 顯示一致） ===== */
 const CAMP_START='2025-08-25';
 const CAMP_END='2025-10-19';
@@ -94,51 +100,83 @@ export default function DiaryOverview(){
   
   
   
-  /** 依使用者載入日記*/
-    useEffect(()=>{
-        let canceled=false;
-        const load=async()=>{
-        setError('');
-        if(!userId){
-            setEntries([]);
-            return;
-        }
-        setLoading(true);
-        try{
-            if(!DIARY_API_URL){
-            throw new Error('未設定 VITE_Diary_API');
-            }
-            const params = new URLSearchParams({ userId });
-            if (QUERY_FRESH) params.set('fresh','1'); // 首次查看可繞過快取
-            const url = `${DIARY_API_URL}?${params.toString()}`;
-    
-            const res = await fetch(url);
-            const ctype = res.headers.get('content-type') || '';
-            if(!ctype.includes('application/json')) throw new Error('伺服器回傳非 JSON');
-            const json = await res.json() as DiaryApiResponse;
-            if(!json.ok) throw new Error(json.error || '未知錯誤');
-    
-            if(!canceled) setEntries(json.entries || []);
-    
-            // 抓到資料後把 fresh 拿掉，避免之後每次都繞過快取
-            if (QUERY_FRESH) {
-            const sp = new URLSearchParams(window.location.search);
-            sp.delete('fresh');
-            const newUrl = `${window.location.pathname}?${sp.toString()}`.replace(/\?$/,'');
-            window.history.replaceState(null,'',newUrl);
-            }
-        }catch(e:any){
-            if(!canceled){
-            setError(e?.message || '載入失敗');
-            setEntries([]);
-            }
-        }finally{
-            if(!canceled) setLoading(false);
-        }
-        };
-        load();
-        return ()=>{canceled=true;};
-    },[userId, DIARY_API_URL]);
+  /** 依使用者載入日記（改接 AWS） */
+useEffect(() => {
+  let canceled = false;
+
+  const load = async () => {
+    setError('');
+    if (!userId) {
+      setEntries([]);
+      return;
+    }
+    setLoading(true);
+    try {
+      const AWS_BASE = (import.meta.env.VITE_AWS_BASE_URL as string) || '';
+      if (!AWS_BASE) throw new Error('未設定 VITE_AWS_BASE_URL');
+
+      // 組 URL：{BASE}/users/{id}/diary[?fresh=1&_ts=...]
+      const base = AWS_BASE.replace(/\/+$/,''); // 去尾巴斜線
+      const path = `/users/${encodeURIComponent(userId)}/diary`;
+      const sp = new URLSearchParams();
+      if (QUERY_FRESH) {
+        // 讓「繞過快取」有實際效果：加時間戳避免中間層快取
+        sp.set('fresh', '1');
+        sp.set('_ts', String(Date.now()));
+      }
+      const url = `${base}${path}${sp.toString() ? `?${sp.toString()}` : ''}`;
+
+      // 可選：如果你朋友的 API 有金鑰，打開這段並在 .env 設定 VITE_AWS_API_KEY
+      const headers: Record<string, string> = {};
+      const apiKey = import.meta.env.VITE_AWS_API_KEY as string | undefined;
+      if (apiKey) headers['x-api-key'] = apiKey;
+
+      const res = await fetch(url, { headers });
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        throw new Error(`AWS 回應 ${res.status}${text ? `：${text}` : ''}`);
+      }
+
+      const ctype = res.headers.get('content-type') || '';
+      if (!ctype.includes('application/json')) throw new Error('伺服器回傳非 JSON');
+      const json = (await res.json()) as AwsDiaryResponse;
+
+      if (json.code !== 200) {
+        throw new Error(json?.message || 'AWS 回傳非 200');
+      }
+
+      const diary = json?.data?.diary || [];
+
+      // 轉成頁面現有結構：{date, dayNumber, diaryText}
+      const mapped: DiaryEntry[] = diary.map((d) => ({
+        date: d.date,
+        dayNumber: daysDiff(d.date, CAMP_START) + 1,
+        diaryText: (d.content || '').trim(),
+      }));
+
+      if (!canceled) setEntries(mapped);
+
+      // 抓到資料後把 fresh 拿掉，避免之後每次都繞過快取
+      if (QUERY_FRESH) {
+        const sp2 = new URLSearchParams(window.location.search);
+        sp2.delete('fresh');
+        const newUrl = `${window.location.pathname}?${sp2.toString()}`.replace(/\?$/, '');
+        window.history.replaceState(null, '', newUrl);
+      }
+    } catch (e: any) {
+      if (!canceled) {
+        setError(e?.message || '載入失敗');
+        setEntries([]);
+      }
+    } finally {
+      if (!canceled) setLoading(false);
+    }
+  };
+
+  load();
+  return () => { canceled = true; };
+}, [userId]);
+
 
   /** 產出營期間所有日期（for 顯示所有天） */
   const allCampDates=useMemo(()=>{
