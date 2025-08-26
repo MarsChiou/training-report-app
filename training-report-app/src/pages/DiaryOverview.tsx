@@ -31,7 +31,7 @@ function daysDiff(a:string,b:string){
 
 /** ===== 型別 ===== */
 type DiaryEntry={date:string;dayNumber:number;diaryText:string};
-type DiaryApiResponse={ok:boolean;entries:DiaryEntry[];error?:string};
+//type DiaryApiResponse={ok:boolean;entries:DiaryEntry[];error?:string};
 
 /** ===== AWS Diary Response Types ===== */
 type AwsDiaryItem = { date: string; content?: string };
@@ -60,7 +60,7 @@ export default function DiaryOverview(){
 
   // 環境變數
   //const NAME_API_URL=`${import.meta.env.VITE_GAS_URL||''}?action=names&format=object`;
-  const DIARY_API_URL = import.meta.env.VITE_Diary_API as string; 
+  //const DIARY_API_URL = import.meta.env.VITE_Diary_API as string; 
 
   /** 名單載入後的預選與一致性處理（交給 useRoster 取資料，不再自行 fetch） */
     useEffect(() => {
