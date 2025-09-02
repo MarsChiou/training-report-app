@@ -546,4 +546,4 @@ const movementMapWithMapping = useMemo(() => {
       </div>
     </div>
   );
-})
+}}
