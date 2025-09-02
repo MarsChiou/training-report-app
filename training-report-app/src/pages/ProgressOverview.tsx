@@ -61,7 +61,16 @@ type AwsOneResponse = {
  */
 const CAMP_START = '2025-08-25';
 const CAMP_END   = '2025-10-19';
-
+const WEEK_MOVEMENT_MAPPING = {
+  1: ['P01', 'P02', 'P03'],
+  2: ['P13', 'P14', 'P15'], // 現在 P13-P15 在第2週
+  3: ['P07', 'P08', 'P09'],
+  4: ['P10', 'P11', 'P12'],
+  5: ['P04', 'P05', 'P06'], // 現在 P04-P06 在第5週
+  6: ['P16', 'P17', 'P18'],
+  7: ['P19', 'P20', 'P21'],
+  8: ['P22', 'P23', 'P24'],
+};
 function toDate(s: string) {
   const [y, m, d] = s.split('-').map(Number);
   return new Date(y, (m as number) - 1, d as number);
@@ -97,20 +106,24 @@ function movementIdToActionKey(movementId: string) {
   return `動作${idx}` as const;
 }
 
-function awsUserToUserProgress(u: AwsUser): UserProgress {
+function awsUserToUserProgressWithMapping(u: AwsUser): UserProgress {
   const progressByWeek: UserProgress['progress'] = {};
-
+  
+  // 建立 movement_id 到資料的映射
+  const movementData = new Map<string, string>();
   u.training_progress.forEach(tp => {
-    const themeTitle = weekTitleByWeekNo(tp.week_number); // 如 "P25 肩胛胸椎-6"
-    const actionKey = movementIdToActionKey(tp.movement_id); // "動作1/2/3"
-    if (!progressByWeek[themeTitle]) progressByWeek[themeTitle] = {};
-    progressByWeek[themeTitle][actionKey] = tp.level || '-';
+    movementData.set(tp.movement_id, tp.level || '-');
   });
-
-  // 補齊缺漏的動作欄位
-  Object.keys(progressByWeek).forEach(themeTitle => {
-    ['動作1', '動作2', '動作3'].forEach(k => {
-      if (!progressByWeek[themeTitle][k]) progressByWeek[themeTitle][k] = '-';
+  
+  // 按固定映射表組織資料
+  Object.entries(WEEK_MOVEMENT_MAPPING).forEach(([weekStr, movements]) => {
+    const week = parseInt(weekStr);
+    const themeTitle = weekTitleByWeekNo(week);
+    if (!progressByWeek[themeTitle]) progressByWeek[themeTitle] = {};
+    
+    movements.forEach((movementId, index) => {
+      const actionKey = `動作${index + 1}`;
+      progressByWeek[themeTitle][actionKey] = movementData.get(movementId) || '-';
     });
   });
 
@@ -245,7 +258,7 @@ export default function ProgressOverview() {
     };
   }, [selectedUser, AWS_BASE, nameToId]);
 
-  /** ========== movementMap： (week-action) -> {title, displayTitle, searchParam} ========== */
+  /** ========== movementMap： (week-action) -> {title, displayTitle, searchParam} (可能可移除) ========== */
   const movementMap = useMemo(() => {
     const map = new Map<string, ProcessedMovement>();
     progressMovementMap.forEach((item) => {
@@ -258,6 +271,23 @@ export default function ProgressOverview() {
     });
     return map;
   }, []);
+
+  // 對應的 movementMap
+const movementMapWithMapping = useMemo(() => {
+  const map = new Map<string, ProcessedMovement>();
+  
+  Object.entries(WEEK_MOVEMENT_MAPPING).forEach(([weekStr, movements]) => {
+    const week = parseInt(weekStr);
+    movements.forEach((movementId, index) => {
+      const actionKey = `動作${index + 1}`;
+      const key = `${week}-${actionKey}`;
+      map.set(key, {
+        title: movementId,
+        displayTitle: movementId,
+        searchParam: encodeURIComponent(movementId)
+      });
+    });
+  });  
 
   /** ========== 主題集合與週次清單 ========== */
   const themeData = useMemo(() => {
