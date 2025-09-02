@@ -272,7 +272,7 @@ export default function ProgressOverview() {
     return map;
   }, []);
 
-  // 對應的 movementMap
+// 對應的 movementMap
 const movementMapWithMapping = useMemo(() => {
   const map = new Map<string, ProcessedMovement>();
   
@@ -287,15 +287,18 @@ const movementMapWithMapping = useMemo(() => {
         searchParam: encodeURIComponent(movementId)
       });
     });
-  });  
+  });
+  
+  return map; // ← 這裡缺少了 return 語句
+}, []); 
 
-  /** ========== 主題集合與週次清單 ========== */
-  const themeData = useMemo(() => {
-    if (data.length === 0) return { allThemes: [] as string[], weekThemes: [] as WeekTheme[] };
-    const allThemes = Object.keys(data[0].progress || {});
-    const weekThemes = allThemes.map((title, i) => ({ title, week: i + 1 }));
-    return { allThemes, weekThemes };
-  }, [data]);
+/** ========== 主題集合與週次清單 ========== */
+const themeData = useMemo(() => {
+  if (data.length === 0) return { allThemes: [] as string[], weekThemes: [] as WeekTheme[] };
+  const allThemes = Object.keys(data[0].progress || {});
+  const weekThemes = allThemes.map((title, i) => ({ title, week: i + 1 }));
+  return { allThemes, weekThemes };
+}, [data]);
 
   /** ========== 預設當週篩選（只自動帶一次；營期外不預設） ========== */
   useEffect(() => {
@@ -546,4 +549,5 @@ const movementMapWithMapping = useMemo(() => {
       </div>
     </div>
   );
-}}
+}
+}
