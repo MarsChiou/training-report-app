@@ -9,8 +9,6 @@ import { progressMovementMap } from '../pages/utils/progressMovementMap';
 
 // ✅ 統一改用 campConfig
 import {
-  CAMP_START,
-  CAMP_END,
   todayYMD,
   isWithinCamp,
   campWeekNumber,

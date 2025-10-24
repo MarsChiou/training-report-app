@@ -53,7 +53,7 @@ export function campDayNumber(ymd: string) {
   return Math.floor((a - b) / 86400000) + 1;
 }
 /** 第幾週：以週一為週起點，Day1 所在週視為第 1 週 */
-export function campWeekNumber(ymd: string, weekStartsOn: 0|1 = 1) {
+export function campWeekNumber(ymd: string) {
   const day1 = campDayNumber(ymd); // 1..N
   // 以 Day1 為當週起點：每 7 天一週
   return Math.floor((day1 - 1) / 7) + 1;

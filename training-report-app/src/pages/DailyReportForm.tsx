@@ -7,7 +7,6 @@ import 'react-datepicker/dist/react-datepicker.css';
 import useRoster from '../hooks/useRoster';
 import {
   CAMP_START,
-  CAMP_END,
   todayYMD,
   parseLocalYMD,
   formatDateLocal,
@@ -124,7 +123,7 @@ export default function DailyReportForm() {
     const selected = parseLocalYMD(selectedDate);
     const todayDate = parseLocalYMD(today);
     if (!userId) return '請先選擇您的名字';
-    if (selected < CAMP_START_DATE) return `營隊作業從 ${toSlash(CAMP_START).slice(5)} 才開始喔!`;
+    if (selected < CAMP_START_DATE) return `營隊作業從 ${CAMP_START} 才開始喔!`;
     if (selected > todayDate) return '不能選擇未來的日期喔！';
     if (!isRestDay && !trainingDone && !diaryDone) return '至少要完成訓練或日記其中一項喔!💪';
     if (isRestDay && !diaryDone) return '健心日，好好覺察自己的內心 📝';
