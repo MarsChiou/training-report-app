@@ -7,6 +7,15 @@ import Header from './components/Header';
 import { getLevelBackgroundStyle } from '../pages/utils/levelStyle.ts';
 import { progressMovementMap } from '../pages/utils/progressMovementMap';
 
+// ✅ 統一改用 campConfig
+import {
+  CAMP_START,
+  CAMP_END,
+  todayYMD,
+  isWithinCamp,
+  campWeekNumber,
+} from './utils/campConfig';
+
 /** ====================== 既有型別（UI 內部用） ====================== */
 interface UserProgress {
   nickname: string; // 顯示名（= AWS 的 name）
@@ -55,33 +64,6 @@ type AwsOneResponse = {
   message: string;
   data: AwsUser;
 };
-
-/** ====================== 營期設定 + 本地時間工具 ======================
- * 若營期時間有變，請同步更新這兩個常數。
- */
-const CAMP_START = '2025-08-25';
-const CAMP_END   = '2025-10-19';
-
-function toDate(s: string) {
-  const [y, m, d] = s.split('-').map(Number);
-  return new Date(y, (m as number) - 1, d as number);
-}
-function todayYMD() {
-  const t = new Date();
-  const y = t.getFullYear();
-  const m = String(t.getMonth() + 1).padStart(2, '0');
-  const d = String(t.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
-/** 回傳 1..8 的週次；若今日不在營期內，回傳 null（不預設篩選）。 */
-function currentWeekNumberWithinCamp(): number | null {
-  const start = toDate(CAMP_START).getTime();
-  const end = toDate(CAMP_END).getTime();
-  const today = toDate(todayYMD()).getTime();
-  if (today < start || today > end) return null;
-  const diffDays = Math.floor((today - start) / 86400000);
-  return Math.min(8, Math.floor(diffDays / 7) + 1);
-}
 
 /** ====================== 工具：將 AWS 轉我方結構 ====================== */
 function weekTitleByWeekNo(weekNo: number) {
@@ -137,6 +119,14 @@ function deriveBodyPartByWeek(list: AwsUser[]): Record<number, string> {
     }
   }
   return map;
+}
+
+/** 回傳 1..8 的週次；若今日不在營期內，回傳 null（不預設篩選）。 */
+function currentWeekNumberWithinCamp(): number | null {
+  const today = todayYMD();
+  if (!isWithinCamp(today)) return null;
+  // campWeekNumber：1 起算
+  return Math.min(8, campWeekNumber(today));
 }
 
 /** ====================== 主元件 ====================== */
@@ -480,7 +470,7 @@ export default function ProgressOverview() {
               }
               placeholder="選擇週次"
               isClearable
-              isSearchable={false} 
+              isSearchable={false}
             />
           </div>
         </div>
