@@ -1,5 +1,4 @@
-// src/pages/OffSeasonPage.tsx
-import React from 'react';
+// src/pages/OffSeasonPage
 import { FaInstagram, FaLink } from 'react-icons/fa';
 
 export default function OffSeasonPage() {
