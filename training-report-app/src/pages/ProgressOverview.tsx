@@ -80,9 +80,9 @@ function movementIdToActionKey(movementId: string) {
 function awsUserToUserProgress(u: AwsUser): UserProgress {
   const progressByWeek: UserProgress['progress'] = {};
 
-  u.training_progress.forEach(tp => {
-    const themeTitle = weekTitleByWeekNo(tp.week_number); // 如 "P25 肩胛胸椎-6"
-    const actionKey = movementIdToActionKey(tp.movement_id); // "動作1/2/3"
+  (u.training_progress || []).forEach(tp => {
+    const themeTitle = weekTitleByWeekNo(tp.week_number);
+    const actionKey = movementIdToActionKey(tp.movement_id);
     if (!progressByWeek[themeTitle]) progressByWeek[themeTitle] = {};
     progressByWeek[themeTitle][actionKey] = tp.level || '-';
   });
@@ -111,7 +111,7 @@ function deriveBodyPartByWeek(list: AwsUser[]): Record<number, string> {
   const map: Record<number, string> = {};
   const first = list[0];
   if (!first) return map;
-  for (const tp of first.training_progress) {
+  for (const tp of (first.training_progress || [])) {
     if (tp?.week_number && tp?.body_part && !map[tp.week_number]) {
       map[tp.week_number] = tp.body_part;
     }
