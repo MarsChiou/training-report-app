@@ -144,7 +144,7 @@ export default function DailyReportForm() {
   const handleSubmit = async () => {
     const errorMessage = getValidationMessage();
     if (errorMessage) {
-      showErrorToast('⚠️ 回報失敗：' + errorMessage);
+      showErrorToast('回報失敗：' + errorMessage);
       return;
     }
     // 選擇目標：優先用 AWS，否則回退 GAS
@@ -351,7 +351,11 @@ export default function DailyReportForm() {
             dateFormat="yyyy-MM-dd"
             placeholderText="請選擇回報日期"
           />
-          <p className="text-xs text-gray-500 mt-1">營隊第 {campDayNumber(selectedDate)} 天</p>
+          <p className="text-xs text-gray-500 mt-1">
+            {parseLocalYMD(selectedDate) < CAMP_START_DATE
+              ? `營隊從 ${formatDateLocal(CAMP_START_DATE)} 開始喔！`
+              : `營隊第 ${dayNumber} 天`}
+          </p>
         </div>
 
         {/* 今天有完成訓練 */}
@@ -413,7 +417,7 @@ export default function DailyReportForm() {
         {/* 提交按鈕（disabled 僅依必填條件 userId；其他交由 handleSubmit 統一提示） */}
         <button
           onClick={handleSubmit}
-          disabled={submitting || !userId}
+          disabled={submitting || !userId || parseLocalYMD(selectedDate) < CAMP_START_DATE}
           className="w-full flex justify-center items-center bg-teal-500 hover:bg-teal-600 text-white font-bold py-2 px-4 rounded-xl transition duration-150 disabled:opacity-50"
         >
           <FaCheckCircle className="mr-2" />

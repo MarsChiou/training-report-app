@@ -2,13 +2,13 @@ export type CampPhase = 'active' | 'offseason';
 export const CAMP_PHASE: CampPhase = 'offseason';
 
 export function isOffSeason() {
-  return CAMP_PHASE === 'offseason';
+  return CAMP_PHASE === 'active';
 }
 
 /** 統一管理本期營隊設定（靜態） */
-export const CAMP_START = '2025-08-25'; // YYYY-MM-DD
-export const CAMP_END   = '2025-10-19'; // YYYY-MM-DD
-export const CAMP_NAME  = '身體控制挑戰營(下) 第一期';
+export const CAMP_START = '2025-11-03'; // YYYY-MM-DD
+export const CAMP_END   = '2025-12-28'; // YYYY-MM-DD
+export const CAMP_NAME  = '身體控制挑戰營(下) 第二期';
 
 /** ---- 本地時區安全：YYYY-MM-DD <-> Date ---- */
 export function formatDateLocal(date: Date) {
