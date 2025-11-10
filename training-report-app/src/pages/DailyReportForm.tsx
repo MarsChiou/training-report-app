@@ -406,7 +406,7 @@ export default function DailyReportForm() {
             value={diaryText}
             maxLength={150}
             onChange={(e) => setDiaryText(e.target.value)}
-            placeholder="在這裡記錄您今天的感受、覺察和反思..."
+            placeholder="記錄您今天的感受、訓練中的困惑、身體的不適感、或者任何訓練心得"
             className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-400 focus:border-transparent text-sm transition duration-150 resize-none"
           />
           <p className={`text-xs text-right mt-1 ${diaryText.length > 120 ? 'text-red-500' : 'text-gray-500'}`}>
