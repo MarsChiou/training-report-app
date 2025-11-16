@@ -1,8 +1,9 @@
-// pages/DiaryOverview.tsx
+// pages/DiaryOverview.tsx (with fatigue badges)
 import { useEffect, useMemo, useState } from 'react';
 import Header from './components/Header';
 import Select from 'react-select';
-import { FaBookOpen, FaSearch, FaCalendarAlt } from 'react-icons/fa';
+import { FaBookOpen, FaSearch, FaCalendarAlt, FaBrain } from 'react-icons/fa';
+import { GiStrong } from "react-icons/gi";
 import useRoster from '../hooks/useRoster';
 import {
   CAMP_START,
@@ -23,15 +24,60 @@ const QUERY_USER_ID = getQueryParam('userId');   // 預選的 userId（或綽號
 const QUERY_FRESH   = getQueryParam('fresh') === '1'; // 是否繞過快取
 
 /** ===== 型別 ===== */
-type DiaryEntry = { date: string; dayNumber: number; diaryText: string };
+export type DiaryEntry = {
+  date: string;
+  dayNumber: number;
+  diaryText: string;
+  bodyFatigue: number | null;  // 0~10 or null
+  brainFatigue: number | null; // 0~10 or null
+};
 
 /** ===== AWS Diary Response Types ===== */
-type AwsDiaryItem   = { date: string; content?: string };
-type AwsDiaryData   = { id: string; name?: string; diary?: AwsDiaryItem[] };
-type AwsDiaryResponse = { code: number; message?: string; data?: AwsDiaryData };
+export type AwsDiaryItem = {
+  date: string;
+  content?: string;
+  body_rpe?: number | string | null;
+  brain_rpe?: number | string | null;
+};
+export type AwsDiaryData   = { id: string; name?: string; diary?: AwsDiaryItem[] };
+export type AwsDiaryResponse = { code: number; message?: string; data?: AwsDiaryData };
 
 /** ===== 本地快取 key ===== */
 const LAST_USER_ID_KEY = 'diary:lastUserId';
+
+/** ===== 小工具：轉成 0~10 or null ===== */
+function parseFatigue(raw: unknown): number | null {
+  if (raw === undefined || raw === null || raw === '') return null;
+  const n = typeof raw === 'string' ? Number(raw) : (raw as number);
+  if (Number.isNaN(n)) return null;
+  // 四捨五入為整數，並限制在 0~10
+  const v = Math.round(n);
+  return Math.min(10, Math.max(0, v));
+}
+
+function pickBodyFatigue(d: AwsDiaryItem): number | null {
+  return parseFatigue(d.body_rpe);
+}
+function pickBrainFatigue(d: AwsDiaryItem): number | null {
+  return parseFatigue(d.brain_rpe);
+}
+
+/** ===== UI：疲勞度徽章 ===== */
+function fatigueColor(value: number | null) {
+  if (value === null) return 'bg-gray-100 text-gray-600 border-gray-200';
+  if (value <= 5) return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+  return 'bg-amber-50 text-amber-700 border-amber-200';
+}
+function FatigueBadge({ label, value, icon }: { label: string; value: number | null; icon: 'body' | 'brain' }) {
+  const cls = fatigueColor(value);
+  return (
+    <span className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full border ${cls}`}>
+      {icon === 'body' ? <GiStrong className="opacity-80" /> : <FaBrain className="opacity-80" />}
+      <span className="opacity-80">{label}</span>
+      <strong className="ml-0.5">{value === null ? '-' : value}</strong>
+    </span>
+  );
+}
 
 /** ===== 主頁面 ===== */
 export default function DiaryOverview() {
@@ -124,10 +170,12 @@ export default function DiaryOverview() {
 
         const diary = json?.data?.diary || [];
 
-        const mapped: DiaryEntry[] = diary.map(d => ({
+        const mapped: DiaryEntry[] = diary.map((d) => ({
           date: d.date,
-          dayNumber: campDayNumber(d.date), // ✅ 改用共用函式
+          dayNumber: campDayNumber(d.date),
           diaryText: (d.content || '').trim(),
+          bodyFatigue: pickBodyFatigue(d),
+          brainFatigue: pickBrainFatigue(d),
         }));
 
         if (!canceled) setEntries(mapped);
@@ -176,11 +224,17 @@ export default function DiaryOverview() {
   /** 合併空白日（onlyHasDiary=false 時顯示） */
   const mergedByDate = useMemo(() => {
     if (onlyHasDiary) return entries;
-    const map = new Map(entries.map(e => [e.date, e]));
+    const map = new Map(entries.map(e => [e.date, e] as const));
     return allCampDates.map(date => {
       const existed = map.get(date);
       if (existed) return existed;
-      return { date, dayNumber: campDayNumber(date), diaryText: '' } as DiaryEntry;
+      return {
+        date,
+        dayNumber: campDayNumber(date),
+        diaryText: '',
+        bodyFatigue: null,
+        brainFatigue: null,
+      } as DiaryEntry;
     });
   }, [entries, onlyHasDiary, allCampDates]);
 
@@ -295,22 +349,17 @@ export default function DiaryOverview() {
                   e.diaryText ? 'border-teal-200' : 'border-gray-200'
                 } shadow-sm p-4`}
               >
-                <div className="flex items-center justify-between mb-2">
-                  <div className="text-sm text-gray-600">第 {e.dayNumber} 天　|　{e.date}</div>
-                  <div
-                    className={`text-xs px-2 py-0.5 rounded-full ${
-                      e.diaryText
-                        ? 'bg-teal-50 text-teal-700 border border-teal-200'
-                        : 'bg-gray-50 text-gray-500 border border-gray-200'
-                    }`}
-                  >
-                    {e.diaryText ? '已寫日記' : '未填寫'}
-                  </div>
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between mb-2 gap-2">
+                    <div className="text-sm text-gray-600">第 {e.dayNumber} 天　|　{e.date}</div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <FatigueBadge label="身體疲勞" value=  {e.bodyFatigue} icon="body" />
+                        <FatigueBadge label="大腦疲勞" value= {e.brainFatigue} icon="brain" />                    
+                    </div>
                 </div>
 
                 {e.diaryText ? (
                   <div className="flex items-start space-x-2">
-                    <FaBookOpen className="mt-0.5 text-teal-500" />
+                    <FaBookOpen className="mt-0.5 text-teal-500 flex-shrink-0 w-4 h-4" />
                     <p className="whitespace-pre-wrap break-words text-gray-800 text-sm leading-relaxed">
                       {e.diaryText}
                     </p>

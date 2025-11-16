@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useRef, useEffect, useState } from 'react';
 import { FaDumbbell, FaBookOpen, FaCheckCircle } from 'react-icons/fa';
+import { GiSloth } from "react-icons/gi";
 import Select from 'react-select';
 import Header from './components/Header';
 import DatePicker from 'react-datepicker';
@@ -33,6 +34,8 @@ export default function DailyReportForm() {
   const [trainingDone, setTrainingDone] = useState(false);
   const [diaryDone, setDiaryDone] = useState(false);
   const [diaryText, setDiaryText] = useState('');
+  const [bodyFatigue, setBodyFatigue] = useState<number | null>(null);  // 0~10；null 代表未填
+  const [brainFatigue, setBrainFatigue] = useState<number | null>(null); // 0~10；null 代表未填
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [successText, setSuccessText] = useState('');
@@ -76,6 +79,14 @@ export default function DailyReportForm() {
   useEffect(() => {
     if (isRestDay && trainingDone) setTrainingDone(false);
   }, [isRestDay, trainingDone]);
+
+  /** New: 取消勾選訓練時一併清空進階欄位 */
+  useEffect(() => {
+    if (!trainingDone) {
+      setBodyFatigue(null);
+      setBrainFatigue(null);
+    }
+  }, [trainingDone]);
 
   /** 有輸入日記時，自動把日記完成設為 true（若要完全同步可改為 setDiaryDone(hasText)） */
   useEffect(() => {
@@ -138,6 +149,8 @@ export default function DailyReportForm() {
     setDiaryDone(false);
     setDiaryText('');
     setSelectedDate(today);
+    setBodyFatigue(null);
+    setBrainFatigue(null);
   };
 
   /** 送出 */
@@ -171,6 +184,8 @@ export default function DailyReportForm() {
       movement_completed: trainingDone,
       diary_completed: diaryDone,
       diary_content: (diaryText || '').slice(0, 150).trim(),
+      body_rpe: bodyFatigue,      // 新增：身體疲勞度（null 或 0~10）
+      brain_rpe: brainFatigue,    // 新增：大腦疲勞度（null 或 0~10）
     };
 
     // GAS payload
@@ -360,22 +375,131 @@ export default function DailyReportForm() {
 
         {/* 今天有完成訓練 */}
         {!isRestDay ? (
-          <div className="flex items-center space-x-3">
-            <FaDumbbell className="text-teal-600 text-xl" />
-            <label htmlFor="trainingDone" className="flex items-center text-gray-700 cursor-pointer">
-              <input
-                id="trainingDone"
-                type="checkbox"
-                className="mr-2"
-                checked={trainingDone}
-                onChange={(e) => setTrainingDone(e.target.checked)}
-              />
-              今天有完成訓練
-            </label>
+          <div className="space-y-3">
+            <div className="flex items-center space-x-3">
+              <FaDumbbell className="text-teal-600 text-xl" />
+              <label htmlFor="trainingDone" className="flex items-center text-gray-700 cursor-pointer">
+                <input
+                  id="trainingDone"
+                  type="checkbox"
+                  className="mr-2"
+                  checked={trainingDone}
+                  onChange={(e) => setTrainingDone(e.target.checked)}
+                />
+                今天有完成訓練
+              </label>
+            </div>
+
+            {/* New: 進階欄位（滑桿版本） */}
+            {trainingDone && (
+              <div className="p-4 bg-teal-50 border border-teal-100 rounded-xl space-y-6">
+                {/* 身體疲勞度滑桿 */}
+                <div>
+                  <div className="mb-3">
+                  <label className="block text-sm font-medium text-gray-700">
+                    身體疲勞度（選填）
+                    {bodyFatigue !== null ? (
+                      // 已選狀態：顯示實際分數
+                      <span className="ml-2 text-teal-600 font-bold text-lg">{bodyFatigue}</span>
+                    ) : (
+                      // 未選狀態：顯示提示，不顯示分數
+                      <span className="ml-2 text-gray-400 font-normal">待評分</span> // <--- 關鍵提示
+                    )}
+                  </label>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      10 分 = 累到身體出不了力
+                    </p>
+                  </div>
+                  
+                  <div className="relative">
+                    <input
+                      type="range"
+                      min="0"
+                      max="10"
+                      step="1"
+                      value={bodyFatigue ?? 0}
+                      onChange={(e) => setBodyFatigue(Number(e.target.value))}
+                      className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                      style={{
+                        background: bodyFatigue !== null 
+                          ? `linear-gradient(to right, #0d9488 0%, #0d9488 ${(bodyFatigue / 10) * 100}%, #e5e7eb ${(bodyFatigue / 10) * 100}%, #e5e7eb 100%)`
+                          : '#e5e7eb'
+                      }}
+                    />
+                    <div className="flex justify-between text-xs text-gray-500 mt-1 px-0.5">
+                      <span>0</span>
+                      <span>5</span>
+                      <span>10</span>
+                    </div>
+                  </div>
+                  
+                  {bodyFatigue !== null && (
+                    <button
+                      type="button"
+                      onClick={() => setBodyFatigue(null)}
+                      className="mt-2 text-xs text-gray-500 hover:text-teal-600 underline"
+                    >
+                      清除選擇
+                    </button>
+                  )}
+                </div>
+
+                {/* 大腦疲勞度滑桿 */}
+                <div>
+                  <div className="mb-3">
+                    <label className="block text-sm font-medium text-gray-700">
+                      大腦疲勞度（選填）
+                      {brainFatigue !== null ? (
+                      // 已選狀態：顯示實際分數
+                      <span className="ml-2 text-teal-600 font-bold text-lg">{brainFatigue}</span>
+                    ) : (
+                      // 未選狀態：顯示提示，不顯示分數
+                      <span className="ml-2 text-gray-400 font-normal">待評分</span> // <--- 關鍵提示
+                    )}
+                    </label>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      10 分 = 累到大腦想關機
+                    </p>
+                  </div>
+                  
+                  <div className="relative">
+                    <input
+                      type="range"
+                      min="0"
+                      max="10"
+                      step="1"
+                      value={brainFatigue ?? 0}
+                      onChange={(e) => setBrainFatigue(Number(e.target.value))}
+                      className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                      style={{
+                        background: brainFatigue !== null 
+                          ? `linear-gradient(to right, #0d9488 0%, #0d9488 ${(brainFatigue / 10) * 100}%, #e5e7eb ${(brainFatigue / 10) * 100}%, #e5e7eb 100%)`
+                          : '#e5e7eb'
+                      }}
+                    />
+                    <div className="flex justify-between text-xs text-gray-500 mt-1 px-0.5">
+                      <span>0</span>
+                      <span>5</span>
+                      <span>10</span>
+                    </div>
+                  </div>
+                  
+                  {brainFatigue !== null && (
+                    <button
+                      type="button"
+                      onClick={() => setBrainFatigue(null)}
+                      className="mt-2 text-xs text-gray-500 hover:text-teal-600 underline"
+                    >
+                      清除選擇
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <div className="flex items-center space-x-3 text-gray-500">
-            <FaDumbbell className="text-teal-400 text-xl" />
+            <GiSloth className="text-teal-400 text-xl" />
             <span className="italic">今天是健心休息日，請好好休息 💤</span>
           </div>
         )}
