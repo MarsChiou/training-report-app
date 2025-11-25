@@ -365,7 +365,31 @@ export default function MovementLibrary() {
     () => topics.map(t => ({ label: t.name, value: t.id })),
     [topics]
   );
+  /** ====== 計算 上一個 / 下一個 邏輯 ====== */
+  // 1. 找出目前選到的主題在列表中的 index
+  const currentTopicIndex = useMemo(() => {
+    return topics.findIndex(t => t.id === selectedTopicId);
+  }, [topics, selectedTopicId]);
 
+  // 2. 取得上一項與下一項的資料物件 (若無則為 undefined)
+  const prevTopic = topics[currentTopicIndex - 1];
+  const nextTopic = topics[currentTopicIndex + 1];
+
+  // 3. 統一處理切換動作的函式
+  const handleSwitchTopic = (topicId: string) => {
+    if (!topicId) {
+      setSelectedTopicId('');
+      navigate('/movement', { replace: true });
+      return;
+    }
+    
+    setSelectedTopicId(topicId);
+    setSelectedType('All'); // 切換主題時重置類型篩選
+    
+    const name = nameById.get(topicId) || '';
+    const url = name ? `/movement?search=${encodeURIComponent(name)}` : '/movement';
+    navigate(url, { replace: true });
+  };
   /** ====== UI ====== */
   return (
     <div className="min-h-screen bg-gray-50 pt-8 pb-12 px-4 flex flex-col items-center">
@@ -381,28 +405,59 @@ export default function MovementLibrary() {
             {/* Sticky 區：主題與運動類型選擇 */}
             <div className="sticky top-0 z-10 bg-gray-50 pb-4 pt-2 border-b border-gray-300 transition-shadow">
               <label className="block text-sm font-medium text-gray-700 mb-1">選擇主題</label>
-              <Select
-                options={topicOptions}
-                value={
-                  selectedTopicId
-                    ? { label: selectedTopicName, value: selectedTopicId }
-                    : null
-                }
-                onChange={(opt) => {
-                  const id = opt?.value || '';
-                  setSelectedTopicId(id);
-                  setSelectedType('All'); // 切換主題後回到 All
-                  // URL 用 name（維持和舊版一致的使用者體驗）
-                  const name = id ? (nameById.get(id) || '') : '';
-                  const url = name ? `/movement?search=${encodeURIComponent(name)}` : '/movement';
-                  navigate(url, { replace: true });
-                }}
-                placeholder="請輸入或選擇主題"
-                isSearchable={false}
-                isClearable
-                className="mb-4 text-sm sm:text-base"
-                classNamePrefix="react-select"
-              />
+              <div className="flex items-center gap-2 mb-4">
+                {/* 上一個按鈕 */}
+                <button
+                  onClick={() => prevTopic && handleSwitchTopic(prevTopic.id)}
+                  disabled={!prevTopic}
+                  className={`p-2 rounded-md border flex-shrink-0 transition-colors ${
+                    !prevTopic
+                      ? 'bg-gray-100 text-gray-300 cursor-not-allowed border-gray-200'
+                      : 'bg-white text-gray-600 border-gray-300 hover:bg-teal-50 hover:text-teal-600 hover:border-teal-300'
+                  }`}
+                  aria-label="Previous Topic"
+                >
+                  {/* 使用簡單的 SVG Icon (Chevron Left) */}
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+                  </svg>
+                </button>
+
+                {/* 原本的 Select，加上 flex-1 讓它佔據中間空間 */}
+                <div className="flex-1">
+                  <Select
+                    options={topicOptions}
+                    value={
+                      selectedTopicId
+                        ? { label: selectedTopicName, value: selectedTopicId }
+                        : null
+                    }
+                    onChange={(opt) => handleSwitchTopic(opt?.value || '')}
+                    placeholder="請輸入或選擇主題"
+                    isSearchable={false} // 既然有按鈕輔助，這裡維持 false 沒問題
+                    isClearable
+                    className="text-sm sm:text-base"
+                    classNamePrefix="react-select"
+                  />
+                </div>
+
+                {/* 下一個按鈕 */}
+                <button
+                  onClick={() => nextTopic && handleSwitchTopic(nextTopic.id)}
+                  disabled={!nextTopic}
+                  className={`p-2 rounded-md border flex-shrink-0 transition-colors ${
+                    !nextTopic
+                      ? 'bg-gray-100 text-gray-300 cursor-not-allowed border-gray-200'
+                      : 'bg-white text-gray-600 border-gray-300 hover:bg-teal-50 hover:text-teal-600 hover:border-teal-300'
+                  }`}
+                  aria-label="Next Topic"
+                >
+                  {/* 使用簡單的 SVG Icon (Chevron Right) */}
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                  </svg>
+                </button>
+              </div>
 
               {/* 只有選擇了主題時才出現運動類型選單 */}
               {selectedTopicId && (
