@@ -6,9 +6,9 @@ export function isOffSeason() {
 }
 
 /** 統一管理本期營隊設定（靜態） */
-export const CAMP_START = '2025-11-03'; // YYYY-MM-DD
-export const CAMP_END   = '2025-12-28'; // YYYY-MM-DD
-export const CAMP_NAME  = '身體控制挑戰營(下) 第二期';
+export const CAMP_START = '2026-03-02'; // YYYY-MM-DD
+export const CAMP_END   = '2026-04-26'; // YYYY-MM-DD
+export const CAMP_NAME  = '動作控制訓練營';
 
 /** ---- 本地時區安全：YYYY-MM-DD <-> Date ---- */
 export function formatDateLocal(date: Date) {
