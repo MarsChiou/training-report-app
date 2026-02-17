@@ -292,7 +292,15 @@ export default function DiaryOverview() {
             </div>
 
             <div className="flex items-end justify-between md:justify-end gap-4">
-              
+              <label className="inline-flex items-center text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  className="mr-2"
+                  checked={onlyHasDiary}
+                  onChange={e => setOnlyHasDiary(e.target.checked)}
+                />
+                只看有日記
+              </label>
               <button
                 onClick={() => setSortDesc(v => !v)}
                 className="px-3 py-2 text-sm rounded-lg border border-gray-300 bg-gray-50 hover:bg-gray-100"
