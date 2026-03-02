@@ -4,7 +4,7 @@
     - 使用的是 React + TypeScript + Vite
     - 部署在 Vercel
 - Firebase Function
-    - 目前僅使用 `proxyRosterWithCache`，其他 function 已棄用改抓 AWS Function，因此後端問題不用看這邊
+    - 目前僅使用 `proxyRosterWithCache`，其他 function 已棄用改抓 AWS Function
 - 所有圖檔 (包含 Logo, 動作圖庫)
 ### 營期更新說明
 每次新營期要做的事情
@@ -14,6 +14,7 @@
     - 更新 `training-report-app/src/pages/utils/progressMovementMap.ts` 的每週動作主圖
 - 營期時間和名稱更新：更新 `training-report-app/src/pages/utils/campConfig.ts` 的 Config
 - 更新 vercel Project Name (主要是為了更新 Domain)
+- 更新 GAS 指向的 sheet
 
 ### 每次更新前檢查
 - 各頁面名單是否有資料 & 正確

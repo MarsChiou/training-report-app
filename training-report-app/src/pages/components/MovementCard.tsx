@@ -29,7 +29,7 @@ export default function MovementCard({ data }: { data: MovementData }) {
     >
       <div className="flex justify-between items-center mb-2">
         <h2 className="font-bold text-lg">
-          {data.level}（{data.type}）
+          {data.level}
         </h2>
         {data.locked && (
           <div className="text-gray-500 text-sm flex items-center">

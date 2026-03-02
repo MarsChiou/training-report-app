@@ -107,6 +107,7 @@ const FALLBACK_TYPE_LABELS: Record<string, string> = {
   rock_climb: '攀岩',
   run: '跑步',
   mt_climb: '登山',
+  WeightTraining: '重訓',
 };
 
 export default function MovementLibrary() {
