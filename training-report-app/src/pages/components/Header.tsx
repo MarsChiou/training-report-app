@@ -1,6 +1,5 @@
-import { useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { CAMP_NAME, campLabel } from '../utils/campConfig';
-
 
 export default function Header() {
   const location = useLocation();
@@ -45,23 +44,21 @@ export default function Header() {
         {navItems.map((item) => {
           const active = currentPath === item.path;
           return (
-            <a
+            <Link
               key={item.path}
-              href={item.path}
+              to={item.path}
               aria-current={active ? 'page' : undefined}
               className={[
-                // 尺寸與排版：允許換行、但設最小高度，避免高度不齊
                 'px-3 py-2 rounded-full flex items-center justify-center text-center',
                 'whitespace-normal leading-tight min-h-[2.5rem] w-full sm:w-auto',
                 'transition transform duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-400',
-                // 狀態樣式
                 active
                   ? 'bg-teal-500 text-white font-bold'
                   : 'bg-teal-100 text-teal-700 hover:bg-teal-200 hover:scale-105'
               ].join(' ')}
             >
               {item.name}
-            </a>
+            </Link>
           );
         })}
       </div>

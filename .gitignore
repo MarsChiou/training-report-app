@@ -1,0 +1,19 @@
+# OS
+**/.DS_Store
+
+# 根目錄
+node_modules/
+
+# 忽略 React 編譯產物與環境變數
+training-report-app/node_modules/
+training-report-app/.env
+training-report-app/dist/
+
+# 忽略 Firebase 憑證與安裝套件
+firebase/node_modules/
+firebase/functions/node_modules/
+firebase/functions/.runtimeconfig.json
+firebase/serviceAccountKey.json
+
+# 忽略需求資料夾
+require_MD/

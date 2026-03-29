@@ -8,6 +8,7 @@ export const levelBackgroundStyle: Record<string, string> = {
   Lv3: 'bg-amber-50 text-amber-700',
   Lv4: 'bg-purple-50 text-purple-700',
   Lv5: 'bg-fuchsia-50 text-fuchsia-700',
+  '過關': 'bg-yellow-100 text-yellow-800',
 };
 
 // border 顏色（給 MovementCard 用）
@@ -16,6 +17,7 @@ export const levelBorderStyle: Record<string, string> = {
   Lv3: 'border-amber-400',
   Lv4: 'border-purple-400',
   Lv5: 'border-fuchsia-400',
+  '過關': 'border-yellow-400',
 };
 
 // 背景用的 helper function
