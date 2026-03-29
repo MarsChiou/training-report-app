@@ -5,8 +5,8 @@
 ## 技術棧
 
 - **前端**：React 19 + TypeScript + Vite 6 + Tailwind CSS 3
-- **部署**：Vercel（前端）+ Firebase Cloud Functions
-- **資料來源**：AWS 後端 API（主要）、Firebase Firestore（快取 + 日誌）
+- **部署**：Vercel
+- **資料來源**：AWS 後端 API
 
 ## 專案結構
 
@@ -22,11 +22,9 @@
 │   │   │   ├── components/            # 共用元件（Header, MovementCard）
 │   │   │   └── utils/                 # 設定檔（campConfig, levelStyle, progressMovementMap）
 │   │   ├── hooks/              # 自訂 Hook（useRoster）
-│   │   ├── firebase.ts         # Firebase 初始化
 │   │   └── App.tsx             # 路由設定 + 休營守衛
 │   └── public/                 # 靜態資源（Logo, 動作圖庫圖片）
-├── firebase/
-│   └── functions/              # Firebase Cloud Functions
+├── firebase/                   # Firebase Cloud Functions（此專案初版使用 fireabase function, 目前前端未使用，僅保留供 LINE Bot 等用途）
 └── readme.md
 ```
 
@@ -42,17 +40,7 @@ npm run dev          # http://localhost:5173
 
 | 變數名 | 說明 |
 |--------|------|
-| `VITE_AWS_BASE_URL` | AWS 後端 API 基礎 URL |
-| `VITE_FN_ROSTER` | Firebase Function 名單 API URL |
-| `VITE_FIREBASE_API_KEY` | Firebase 前端 API Key |
-| `VITE_FIREBASE_AUTH_DOMAIN` | Firebase Auth Domain |
-| `VITE_FIREBASE_PROJECT_ID` | Firebase Project ID |
-| `VITE_FIREBASE_STORAGE_BUCKET` | Firebase Storage Bucket |
-| `VITE_FIREBASE_MESSAGING_SENDER_ID` | Firebase Messaging Sender ID |
-| `VITE_FIREBASE_APP_ID` | Firebase App ID |
-| `VITE_FIREBASE_MEASUREMENT_ID` | Firebase Measurement ID |
-| `VITE_REPORT_API_URL` | （舊版備用）Firebase Function 回報 API URL |
-| `VITE_PROGRESS_API_URL` | （舊版備用）Firebase Function 進度 API URL |
+| `VITE_AWS_BASE_URL` | AWS 後端 API 基礎 URL（名單、回報、進度、日記、動作圖庫皆透過此 API） |
 
 ## 頁面說明
 
@@ -66,14 +54,15 @@ npm run dev          # http://localhost:5173
 
 ## 資料來源
 
-以下資料全來自 AWS 後端：
-- 日記
-- 訓練進度
-- 動作圖庫
+所有資料皆來自 AWS 後端：
+- 隊員名單（`/users`）
+- 每日回報（`/users/{id}/check-in`）
+- 訓練進度（`/users/all`、`/users/{id}/training_progress`）
+- 覺察日記（`/users/{id}/diary`）
+- 動作圖庫（`/movements`、`/movements/{id}`）
   - sheet 的進階動作需要有內容，後端才會將資料吐回來給前端，因此開營時可預先填入空格或者符號確保營期一開始就看得到每個動作都有 Lv1~Lv5 以及有多種不同運動
-- 隊員名單
 
-僅 `名單版本號` 透過 Firebase Function 拉 Google Sheet，做為 local 端是否需要重新拉名單的判斷標準。
+名單會快取在瀏覽器的 localStorage，使用者每次開啟頁面時背景靜默更新，避免重複載入。
 
 ## 營期更新 Checklist
 

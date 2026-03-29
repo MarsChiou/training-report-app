@@ -17,7 +17,6 @@ export const levelBorderStyle: Record<string, string> = {
   Lv3: 'border-amber-400',
   Lv4: 'border-purple-400',
   Lv5: 'border-fuchsia-400',
-  '過關': 'border-yellow-400',
 };
 
 // 背景用的 helper function

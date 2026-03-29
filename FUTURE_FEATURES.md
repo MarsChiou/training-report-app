@@ -49,3 +49,17 @@
   - 動作圖庫的運動類型切換使用頻率
   - 各頁面的造訪次數
 - 替代方案：Plausible / Umami（輕量分析）、PostHog（含 Session Replay）
+
+### 回報提醒推播通知
+- 目的：每天固定時間（例如晚上 9 點）提醒尚未回報的隊員
+- 純前端無法做到「App 關閉時定時推播」，需要推播伺服器
+- 建議架構：
+  1. **推播伺服器**：使用 Firebase Cloud Messaging (FCM)，免費且與現有 Firebase 專案整合
+  2. **排程觸發**：Cloud Scheduler 或 Cloud Functions 排程，每天固定時間執行
+  3. **判斷未回報**：排程執行時查 AWS 後端當天回報紀錄，篩出未回報的人
+  4. **發送推播**：透過 FCM 將通知推送到使用者裝置
+  5. **前端配合**：PWA 需註冊 Service Worker 並取得使用者的推播授權（Notification.requestPermission）
+- 注意事項：
+  - Notification 權限只能問一次，使用者拒絕後無法再詢問，需設計好觸發時機（例如在設定頁讓使用者主動開啟）
+  - iOS Safari PWA 從 16.4 起支援推播，但體驗不如 Android Chrome
+  - 需要有後端存放每位使用者的推播 token（FCM registration token）
