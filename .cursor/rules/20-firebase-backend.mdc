@@ -1,0 +1,25 @@
+---
+description: Guidance for Firebase Functions and backend-adjacent scripts
+globs:
+  - firebase/**/*.js
+  - firebase/**/*.ts
+---
+
+# Firebase And Backend Rules
+
+## Runtime Expectations
+
+- Preserve the current deployment shape and entrypoints unless the task explicitly changes infra.
+- Keep function handlers straightforward and easy to trace.
+- Avoid changing request and response payload contracts without updating all consumers.
+
+## Safety
+
+- Do not hardcode secrets or credentials.
+- Keep environment-specific values configurable.
+- Prefer explicit validation and helpful error messages for malformed input.
+
+## Interop
+
+- This repository appears to bridge frontend progress views with backend progress data.
+- If backend payload shape changes are necessary, update frontend consumers in the same task and call out the contract change clearly.

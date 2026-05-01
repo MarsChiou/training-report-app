@@ -1,0 +1,45 @@
+---
+description: Shared project context, architecture, and edit guardrails for this repository
+alwaysApply: true
+---
+
+# Training Report App Project Context
+
+## Repo Structure
+
+- `training-report-app/` is the main frontend app.
+- `firebase/` contains Firebase Functions and related scripts.
+- The repository root contains shared project docs and deployment config.
+
+## Frontend Stack
+
+- Frontend uses React 19, TypeScript, Vite, React Router, Tailwind, and Firebase client SDK.
+- Keep new frontend code in TypeScript.
+- Prefer functional React components and hooks.
+- Use the existing relative import style unless a broader refactor is explicitly requested.
+
+## Existing Product Behavior To Preserve
+
+- The app contains camp and off-season logic driven by `training-report-app/src/pages/utils/campConfig.ts`.
+- Progress data currently supports both AWS API and a legacy progress API fallback.
+- UI copy already mixes Traditional Chinese labels with technical English identifiers. Preserve user-facing Chinese terminology unless the task explicitly changes product copy.
+- Do not casually rename route paths, env vars, or API response field names.
+
+## Editing Guidance
+
+- Make focused changes and preserve the current architecture unless the prompt asks for refactoring.
+- When touching data loading code, keep loading, error, and empty-state behavior explicit.
+- When introducing new environment variables for the Vite app, use the `VITE_` prefix.
+- If API data is transformed for UI use, keep the transformation readable and close to the consuming feature unless there is a clear shared abstraction.
+
+## Useful Commands
+
+- Frontend dev: `npm run dev` in `training-report-app/`
+- Frontend build: `npm run build` in `training-report-app/`
+- Frontend lint: `npm run lint` in `training-report-app/`
+
+## Definition Of Good Changes
+
+- Keep changes small, reversible, and easy to review.
+- Match existing naming and code style before introducing new patterns.
+- Prefer solving the actual product issue over adding generic abstractions.

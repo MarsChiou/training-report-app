@@ -1,0 +1,40 @@
+---
+description: React and TypeScript guidance for files inside the Vite frontend app
+globs:
+  - training-report-app/src/**/*.ts
+  - training-report-app/src/**/*.tsx
+  - training-report-app/src/**/*.css
+---
+
+# Frontend Rules
+
+## Components And Hooks
+
+- Prefer small functional components with clear local state.
+- Avoid extracting hooks or utility files too early; only extract when logic is reused or meaningfully simplified.
+- Keep effect dependencies correct. Do not suppress lint rules unless there is a documented reason.
+- Use derived values directly when simple; avoid adding memoization unless it solves a real render or dependency problem.
+
+## Data Fetching And State
+
+- When calling APIs, validate the response shape before trusting nested data.
+- Keep async loading and failure states visible in code.
+- Do not remove compatibility branches such as AWS vs legacy fallback unless explicitly requested.
+- Prefer defensive handling for optional or partial backend data.
+
+## UX Consistency
+
+- Preserve existing route behavior in `training-report-app/src/App.tsx`, especially off-season gating and redirects.
+- Maintain established user-facing labels and training concepts such as week, level, movement, and body rotation.
+- For forms and tables, favor clarity and operational usefulness over visual novelty.
+
+## Styling
+
+- Reuse existing Tailwind and CSS patterns already present in the codebase.
+- Avoid introducing a new component library without being asked.
+- Keep layouts responsive and practical on mobile.
+
+## File-Level Awareness
+
+- `training-report-app/src/pages/ProgressOverview.tsx` already contains domain-specific mapping logic between API data and UI display. Be careful when changing week, movement, or level transformations.
+- `training-report-app/src/pages/utils/` holds camp schedule and progress mapping utilities. Prefer updating those shared utilities when behavior truly belongs there.

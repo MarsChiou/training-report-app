@@ -17,7 +17,7 @@ export default function OffSeasonPage() {
         {/* Text */}
         <h1 className="text-2xl font-semibold text-gray-800 mb-6 leading-relaxed">
           下一期營隊將於{' '}
-          <span className="text-teal-700 font-bold">2025/11/03</span>{' '}
+          <span className="text-teal-700 font-bold">2026/05/11</span>{' '}
           開始，這段期間先好好休息，消化一下上一期的內容吧。
         </h1>
 
