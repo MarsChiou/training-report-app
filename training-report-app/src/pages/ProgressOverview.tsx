@@ -337,10 +337,10 @@ export default function ProgressOverview() {
         {user.point !== undefined && (
           <p className="mb-2 font-semibold">訓練點數：{user.point} 點</p>
         )}
-
+      {/**
         <p className="mb-2 font-semibold">
           身體旋轉習慣：{personalLoading ? '載入中...' : (user.rotation || '-')}
-        </p>
+        </p> */}
 
         {Object.entries(user.progress).map(([themeKey, actions]) => {
           const weekObj = themeData.weekThemes.find((w) => w.title === themeKey);
