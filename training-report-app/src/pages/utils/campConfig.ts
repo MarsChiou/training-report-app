@@ -6,7 +6,7 @@ export function isOffSeason() {
 }
 
 /** 統一管理本期營隊設定（靜態） */
-export const CAMP_START = '2026-05-04'; // YYYY-MM-DD
+export const CAMP_START = '2026-05-11'; // YYYY-MM-DD
 export const CAMP_END   = '2026-07-05'; // YYYY-MM-DD
 export const CAMP_NAME  = '動作控制訓練營';
 
