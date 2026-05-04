@@ -151,6 +151,9 @@ export default function ProgressOverview() {
   // 「每週→body_part」對照（僅 AWS 路線可用）
   const [bodyPartByWeek, setBodyPartByWeek] = useState<Record<number, string>>({});
 
+  // 設為 true 顯示個人區塊的「身體旋轉習慣」
+  const showBodyRotationHabit = false;
+
   // 環境變數
   const AWS_BASE = (import.meta.env.VITE_AWS_BASE_URL as string | undefined)?.replace(/\/+$/, '');
   const LEGACY_PROGRESS = import.meta.env.VITE_PROGRESS_API_URL as string | undefined;
@@ -337,10 +340,11 @@ export default function ProgressOverview() {
         {user.point !== undefined && (
           <p className="mb-2 font-semibold">訓練點數：{user.point} 點</p>
         )}
-      {/**
-        <p className="mb-2 font-semibold">
-          身體旋轉習慣：{personalLoading ? '載入中...' : (user.rotation || '-')}
-        </p> */}
+        {showBodyRotationHabit && (
+          <p className="mb-2 font-semibold">
+            身體旋轉習慣：{personalLoading ? '載入中...' : (user.rotation || '-')}
+          </p>
+        )}
 
         {Object.entries(user.progress).map(([themeKey, actions]) => {
           const weekObj = themeData.weekThemes.find((w) => w.title === themeKey);
