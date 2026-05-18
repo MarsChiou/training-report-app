@@ -17,6 +17,51 @@ import {
 // 記住上次選的人（報表頁用自己的 key，避免跟日記頁混到）
 const LAST_REPORT_USER_ID_KEY = 'report:lastUserId';
 
+type LastReportUserIdPayload = { campStart: string; userId: string };
+
+/** 只接受與目前 campStart 相符的 JSON；舊版純字串或營期不符則清除 */
+function readLastReportUserId(campStart: string): string {
+  try {
+    const raw = localStorage.getItem(LAST_REPORT_USER_ID_KEY);
+    if (!raw) return '';
+    const parsed = JSON.parse(raw) as unknown;
+    if (
+      parsed &&
+      typeof parsed === 'object' &&
+      !Array.isArray(parsed) &&
+      typeof (parsed as LastReportUserIdPayload).campStart === 'string' &&
+      typeof (parsed as LastReportUserIdPayload).userId === 'string'
+    ) {
+      const p = parsed as LastReportUserIdPayload;
+      if (p.campStart !== campStart) {
+        localStorage.removeItem(LAST_REPORT_USER_ID_KEY);
+        return '';
+      }
+      return p.userId;
+    }
+    localStorage.removeItem(LAST_REPORT_USER_ID_KEY);
+    return '';
+  } catch {
+    localStorage.removeItem(LAST_REPORT_USER_ID_KEY);
+    return '';
+  }
+}
+
+function writeLastReportUserId(userId: string, campStart: string) {
+  if (!userId) {
+    localStorage.removeItem(LAST_REPORT_USER_ID_KEY);
+    return;
+  }
+  localStorage.setItem(
+    LAST_REPORT_USER_ID_KEY,
+    JSON.stringify({ campStart, userId } satisfies LastReportUserIdPayload)
+  );
+}
+
+function clearLastReportUserId() {
+  localStorage.removeItem(LAST_REPORT_USER_ID_KEY);
+}
+
 // 讀網址參數（可沿用你現有的工具）
 function getQueryParam(name: string) {
   const sp = new URLSearchParams(window.location.search);
@@ -30,7 +75,7 @@ export default function DailyReportForm() {
   // 營期起始（用共用工具解析）
   const CAMP_START_DATE = parseLocalYMD(CAMP_START);
 
-  const [userId, setUserId] = useState(() => localStorage.getItem(LAST_REPORT_USER_ID_KEY) || '');
+  const [userId, setUserId] = useState(() => readLastReportUserId(CAMP_START));
   const [trainingDone, setTrainingDone] = useState(false);
   const [diaryDone, setDiaryDone] = useState(false);
   const [diaryText, setDiaryText] = useState('');
@@ -103,28 +148,28 @@ export default function DailyReportForm() {
       const found = nameOptions.find((o) => o.value === QUERY_USER_ID || o.label === QUERY_USER_ID);
       if (found) {
         setUserId(found.value);
-        localStorage.setItem(LAST_REPORT_USER_ID_KEY, found.value);
+        writeLastReportUserId(found.value, CAMP_START);
         return;
       }
     }
 
     // 2) 沒有 URL → 用上次記住的 userId（value）
     if (!userId && !QUERY_USER_ID) {
-      const saved = localStorage.getItem(LAST_REPORT_USER_ID_KEY) || '';
+      const saved = readLastReportUserId(CAMP_START);
       if (saved) {
         const found = nameOptions.find((o) => o.value === saved);
         if (found) {
           setUserId(found.value);
           return;
         }
-        localStorage.removeItem(LAST_REPORT_USER_ID_KEY);
+        clearLastReportUserId();
       }
     }
 
     // 3) 名單異動：當前 userId 不存在 → 清空並提示
     if (userId && !nameOptions.some((o) => o.value === userId)) {
       setUserId('');
-      localStorage.removeItem(LAST_REPORT_USER_ID_KEY);
+      clearLastReportUserId();
       showErrorToast('名單異動：原本的姓名已不在名單中，請重新選擇');
     }
   }, [nameOptions, userId]);
@@ -245,12 +290,13 @@ export default function DailyReportForm() {
         showSuccessToast('回報成功！💪');
       }
       resetAfterSuccess();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('送出錯誤', err);
-      if (err?.name === 'AbortError') {
+      if (err instanceof Error && err.name === 'AbortError') {
         showErrorToast('送出逾時，請稍後再試');
       } else {
-        showErrorToast('送出失敗：' + (err?.message || '未知錯誤'));
+        const msg = err instanceof Error ? err.message : '未知錯誤';
+        showErrorToast('送出失敗：' + msg);
       }
     } finally {
       window.clearTimeout(timer);
@@ -290,8 +336,7 @@ export default function DailyReportForm() {
             onChange={(selected) => {
               const id = selected ? selected.value : '';
               setUserId(id);
-              if (id) localStorage.setItem(LAST_REPORT_USER_ID_KEY, id);
-              else localStorage.removeItem(LAST_REPORT_USER_ID_KEY);
+              writeLastReportUserId(id, CAMP_START);
             }}
             placeholder="請輸入或選擇姓名"
             className="text-sm"
