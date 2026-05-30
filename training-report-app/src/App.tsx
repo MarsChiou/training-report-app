@@ -6,6 +6,7 @@ import MovementLibrary from './pages/MovementLibrary';
 import DiaryOverview from './pages/DiaryOverview';
 import OffSeasonPage from './pages/OffSeasonPage'; // 休營期頁面
 import { isOffSeason } from './pages/utils/campConfig'; // 從 campConfig 匯入
+import AnalyticsRouteTracker from './components/AnalyticsRouteTracker';
 
 /** ---- 休營期門檻 ---- */
 function OffSeasonGate({ children }: { children: React.ReactNode }) {
@@ -31,6 +32,7 @@ function OffSeasonGate({ children }: { children: React.ReactNode }) {
 function App() {
   return (
     <OffSeasonGate>
+      <AnalyticsRouteTracker />
       <Routes>
         <Route path="/" element={<ProgressOverview />} />
         <Route path="/report" element={<DailyReportForm />} />

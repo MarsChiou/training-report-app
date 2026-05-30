@@ -4,6 +4,7 @@ import Header from './components/Header';
 import MovementCard from './components/MovementCard';
 import Select from 'react-select';
 import { useSearchParams, useNavigate } from 'react-router-dom';
+import { captureEvent } from '../lib/analytics';
 
 /** ========= 小工具 ========= */
 function isHttpUrl(s?: string) {
@@ -376,6 +377,27 @@ export default function MovementLibrary() {
   const prevTopic = topics[currentTopicIndex - 1];
   const nextTopic = topics[currentTopicIndex + 1];
 
+  const trackTopicNavigation = (
+    direction: 'previous' | 'next',
+    targetTopicId: string
+  ) => {
+    captureEvent('movement_topic_navigated', {
+      direction,
+      from_topic: selectedTopicId,
+      to_topic: targetTopicId,
+    });
+  };
+
+  const trackTypeSelected = (type: string) => {
+    captureEvent('movement_type_selected', {
+      topic_id: selectedTopicId,
+      topic_name: selectedTopicName,
+      movement_type: type,
+      movement_type_label: type === 'All' ? '全部' : (typeLabels[type] || type),
+      is_all_type: type === 'All',
+    });
+  };
+
   // 3. 統一處理切換動作的函式
   const handleSwitchTopic = (topicId: string) => {
     if (!topicId) {
@@ -409,7 +431,12 @@ export default function MovementLibrary() {
               <div className="flex items-center gap-2 mb-4">
                 {/* 上一個按鈕 */}
                 <button
-                  onClick={() => prevTopic && handleSwitchTopic(prevTopic.id)}
+                  onClick={() => {
+                    if (prevTopic) {
+                      trackTopicNavigation('previous', prevTopic.id);
+                      handleSwitchTopic(prevTopic.id);
+                    }
+                  }}
                   disabled={!prevTopic}
                   className={`p-2 rounded-md border flex-shrink-0 transition-colors ${
                     !prevTopic
@@ -444,7 +471,12 @@ export default function MovementLibrary() {
 
                 {/* 下一個按鈕 */}
                 <button
-                  onClick={() => nextTopic && handleSwitchTopic(nextTopic.id)}
+                  onClick={() => {
+                    if (nextTopic) {
+                      trackTopicNavigation('next', nextTopic.id);
+                      handleSwitchTopic(nextTopic.id);
+                    }
+                  }}
                   disabled={!nextTopic}
                   className={`p-2 rounded-md border flex-shrink-0 transition-colors ${
                     !nextTopic
@@ -466,7 +498,10 @@ export default function MovementLibrary() {
                   {displayTypes.map((type) => (
                     <button
                       key={type}
-                      onClick={() => setSelectedType(type)}
+                      onClick={() => {
+                        setSelectedType(type);
+                        trackTypeSelected(type);
+                      }}
                       className={`px-4 py-1 rounded-full text-sm font-medium border transition ${
                         selectedType === type
                           ? 'bg-teal-500 text-white border-teal-500'

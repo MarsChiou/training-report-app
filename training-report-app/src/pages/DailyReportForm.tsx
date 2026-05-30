@@ -13,6 +13,7 @@ import {
   formatDateLocal,
   campDayNumber,
 } from './utils/campConfig';
+import { captureEvent, classifySubmitError } from '../lib/analytics';
 
 // 記住上次選的人（報表頁用自己的 key，避免跟日記頁混到）
 const LAST_REPORT_USER_ID_KEY = 'report:lastUserId';
@@ -157,12 +158,24 @@ export default function DailyReportForm() {
   const handleSubmit = async () => {
     const errorMessage = getValidationMessage();
     if (errorMessage) {
+      captureEvent('daily_report_submit_failed', {
+        failure_stage: 'validation',
+        error_type: 'validation',
+        user_id: userId || undefined,
+        user_name: selectedOption?.label || undefined,
+      });
       showErrorToast('回報失敗：' + errorMessage);
       return;
     }
     // 選擇目標：優先用 AWS，否則回退 GAS
     const useAWS = !!AWS_BASE_URL;
     if (!useAWS && !POST_API_URL) {
+      captureEvent('daily_report_submit_failed', {
+        failure_stage: 'config',
+        error_type: 'config',
+        user_id: userId || undefined,
+        user_name: selectedOption?.label || undefined,
+      });
       showErrorToast('系統設定有誤：未設定可用的回報 API');
       return;
     }
@@ -239,18 +252,39 @@ export default function DailyReportForm() {
 
       setSuccessText(randomSuccess);
       setSubmitted(true);
+      captureEvent('daily_report_submitted', {
+        user_id: valueId,
+        user_name: displayName,
+        date: selectedDate,
+        day_number: dayNumber,
+        is_rest_day: isRestDay,
+        training_done: trainingDone,
+        diary_done: diaryDone,
+        has_diary_text: diaryText.trim().length > 0,
+        diary_text_length: diaryText.trim().length,
+        body_rpe: bodyFatigue,
+        brain_rpe: brainFatigue,
+        backend: useAWS ? 'aws' : 'legacy',
+      });
       if (msg && msg !== 'OK') {
         showSuccessToast(msg);
       } else {
         showSuccessToast('回報成功！💪');
       }
       resetAfterSuccess();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('送出錯誤', err);
-      if (err?.name === 'AbortError') {
+      captureEvent('daily_report_submit_failed', {
+        failure_stage: 'submit',
+        error_type: classifySubmitError(err),
+        user_id: userId || undefined,
+        user_name: selectedOption?.label || undefined,
+      });
+      if (err && typeof err === 'object' && 'name' in err && (err as { name: string }).name === 'AbortError') {
         showErrorToast('送出逾時，請稍後再試');
       } else {
-        showErrorToast('送出失敗：' + (err?.message || '未知錯誤'));
+        const message = err instanceof Error ? err.message : '未知錯誤';
+        showErrorToast('送出失敗：' + message);
       }
     } finally {
       window.clearTimeout(timer);

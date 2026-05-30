@@ -1,5 +1,5 @@
 // pages/DiaryOverview.tsx (with fatigue badges)
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Header from './components/Header';
 import Select from 'react-select';
 import { FaBookOpen, FaSearch, FaCalendarAlt, FaBrain } from 'react-icons/fa';
@@ -14,6 +14,9 @@ import {
   totalCampDays,
   todayYMD,
 } from './utils/campConfig';
+import { captureEvent, trackUniqueUserSelection } from '../lib/analytics';
+
+const DIARY_SESSION_USERS_KEY = 'analytics:diary:selectedUserIds';
 
 // 讀取網址參數：?userId=...&fresh=1
 function getQueryParam(name: string) {
@@ -92,6 +95,20 @@ export default function DiaryOverview() {
   const [keyword, setKeyword] = useState('');
   const [onlyHasDiary, setOnlyHasDiary] = useState(true);
   const [sortDesc, setSortDesc] = useState(true);
+  const lastTrackedDiaryViewRef = useRef<string | null>(null);
+
+  const trackDiaryUserManualSelected = (
+    id: string,
+    name: string
+  ) => {
+    if (!id) return;
+    const uniqueCount = trackUniqueUserSelection(DIARY_SESSION_USERS_KEY, id);
+    captureEvent('diary_user_manual_selected', {
+      selected_user_id: id,
+      selected_user_name: name,
+      unique_selected_users_session_count: uniqueCount,
+    });
+  };
 
   /** 名單載入後的預選與一致性處理 */
   useEffect(() => {
@@ -178,7 +195,19 @@ export default function DiaryOverview() {
           brainFatigue: pickBrainFatigue(d),
         }));
 
-        if (!canceled) setEntries(mapped);
+        if (!canceled) {
+          setEntries(mapped);
+          if (lastTrackedDiaryViewRef.current !== userId) {
+            const viewedOption = nameOptions.find(o => o.value === userId);
+            lastTrackedDiaryViewRef.current = userId;
+            captureEvent('diary_viewed', {
+              viewed_user_id: userId,
+              viewed_user_name: viewedOption?.label || json.data?.name || userId,
+              diary_count: mapped.length,
+              diary_with_text_count: mapped.filter(e => e.diaryText.trim().length > 0).length,
+            });
+          }
+        }
 
         // 抓到資料後把 fresh 拿掉，避免之後每次都繞過快取
         if (QUERY_FRESH) {
@@ -201,7 +230,7 @@ export default function DiaryOverview() {
     return () => {
       canceled = true;
     };
-  }, [userId]);
+  }, [userId, nameOptions]);
 
   /** 產出營期間所有日期（for 顯示所有天） */
   const allCampDates = useMemo(() => {
@@ -268,8 +297,12 @@ export default function DiaryOverview() {
                 onChange={opt => {
                   const val = opt ? opt.value : '';
                   setUserId(val);
-                  if (val) localStorage.setItem(LAST_USER_ID_KEY, val);
-                  else localStorage.removeItem(LAST_USER_ID_KEY);
+                  if (val) {
+                    localStorage.setItem(LAST_USER_ID_KEY, val);
+                    trackDiaryUserManualSelected(val, opt?.label || val);
+                  } else {
+                    localStorage.removeItem(LAST_USER_ID_KEY);
+                  }
                 }}
                 placeholder="請輸入或選擇姓名"
                 isClearable
@@ -297,12 +330,25 @@ export default function DiaryOverview() {
                   type="checkbox"
                   className="mr-2"
                   checked={onlyHasDiary}
-                  onChange={e => setOnlyHasDiary(e.target.checked)}
+                  onChange={e => {
+                    const enabled = e.target.checked;
+                    setOnlyHasDiary(enabled);
+                    captureEvent('diary_only_has_diary_toggled', { enabled });
+                  }}
                 />
                 只看有日記
               </label>
               <button
-                onClick={() => setSortDesc(v => !v)}
+                onClick={() => {
+                  setSortDesc(v => {
+                    const next = !v;
+                    captureEvent('diary_sort_toggled', {
+                      sort_desc: next,
+                      sort_order: next ? 'desc' : 'asc',
+                    });
+                    return next;
+                  });
+                }}
                 className="px-3 py-2 text-sm rounded-lg border border-gray-300 bg-gray-50 hover:bg-gray-100"
                 title="切換日期排序"
               >

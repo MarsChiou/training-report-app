@@ -3,7 +3,7 @@
 
 # 根目錄
 node_modules/
-
+.env.example
 # 忽略 React 編譯產物與環境變數
 training-report-app/node_modules/
 training-report-app/.env
@@ -17,3 +17,6 @@ firebase/serviceAccountKey.json
 
 # 忽略需求資料夾
 require_MD/
+
+# PostHog 本地導入紀錄（含事件清單與測試筆記，勿提交）
+training-report-app/posthog-implementation-notes.md

@@ -1,5 +1,5 @@
 // pages/ProgressOverview.tsx
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FaUserCircle } from 'react-icons/fa';
 import { Link } from 'react-router-dom';
 import Select from 'react-select';
@@ -13,6 +13,9 @@ import {
   isWithinCamp,
   campWeekNumber,
 } from './utils/campConfig';
+import { captureEvent, trackUniqueUserSelection } from '../lib/analytics';
+
+const PROGRESS_SESSION_USERS_KEY = 'analytics:progress:selectedUserIds';
 
 /** ====================== 既有型別（UI 內部用） ====================== */
 interface UserProgress {
@@ -136,6 +139,8 @@ export default function ProgressOverview() {
   const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
   const didAutoPickWeekRef = useRef(false);
   const didRestoreUserRef = useRef(false);
+  const progressTableTitleRef = useRef<HTMLHeadingElement>(null);
+  const didTrackTableViewRef = useRef(false);
 
   // 載入狀態
   const [loading, setLoading] = useState(true);
@@ -271,6 +276,21 @@ export default function ProgressOverview() {
     didAutoPickWeekRef.current = true;                      // 標記已嘗試（不論是否成功）
   }, [themeData.weekThemes]);
 
+  const trackProgressUserManualSelected = useCallback((userName: string) => {
+    if (!userName) return;
+    const userId = nameToId.get(userName) || '';
+    const uniqueCount = trackUniqueUserSelection(
+      PROGRESS_SESSION_USERS_KEY,
+      userId || userName
+    );
+    captureEvent('progress_user_manual_selected', {
+      selected_user_name: userName,
+      selected_user_id: userId || undefined,
+      has_selected_user: true,
+      unique_selected_users_session_count: uniqueCount,
+    });
+  }, [nameToId]);
+
   /** ========== 記住上次查過的人（只自動恢復一次；清除時刪記錄） ========== */
   const LAST_PROGRESS_USER_KEY = 'progress:lastUserName';
   useEffect(() => {
@@ -292,6 +312,26 @@ export default function ProgressOverview() {
       localStorage.setItem(LAST_PROGRESS_USER_KEY, selectedUser);
     }
   }, [data, selectedUser]);
+
+  /** ========== 總表曝光：進度總覽標題進入螢幕上方 25% 以內，每頁只送一次 ========== */
+  useEffect(() => {
+    const onScroll = () => {
+      if (didTrackTableViewRef.current) return;
+      const el = progressTableTitleRef.current;
+      if (!el) return;
+      const threshold = window.innerHeight * 0.25;
+      if (el.getBoundingClientRect().top <= threshold) {
+        didTrackTableViewRef.current = true;
+        captureEvent('progress_table_viewed', {
+          selected_user_name: selectedUser || undefined,
+          has_selected_user: !!selectedUser,
+        });
+      }
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+    return () => window.removeEventListener('scroll', onScroll);
+  }, [selectedUser]);
 
   /** ========== 下拉選項（姓名用顯示名；週次用主題字串，但 label 顯示 body_part） ========== */
   const selectOptions = useMemo(() => {
@@ -366,6 +406,16 @@ export default function ProgressOverview() {
                     <Link
                       key={`${themeKey}-${action}`}
                       to={`/movement?search=${searchParam}`}
+                      onClick={() => {
+                        captureEvent('progress_movement_link_clicked', {
+                          selected_user_name: user.nickname,
+                          selected_user_id: nameToId.get(user.nickname) || undefined,
+                          week_number: weekNo,
+                          action,
+                          level: lv,
+                          movement_display_title: displayTitle,
+                        });
+                      }}
                       className={`px-2 py-1 rounded-full text-xs ${getLevelBackgroundStyle(
                         lv
                       )} hover:underline hover:text-blue-600 transition min-w-[72px] text-center font-mono`}
@@ -447,7 +497,11 @@ export default function ProgressOverview() {
         <Select
           options={selectOptions.nameOptions}
           value={selectedUser ? { label: selectedUser, value: selectedUser } : null}
-          onChange={(e) => setSelectedUser(e?.value || null)}
+          onChange={(e) => {
+            const next = e?.value || null;
+            setSelectedUser(next);
+            if (next) trackProgressUserManualSelected(next);
+          }}
           placeholder="請選擇隊員"
           isClearable
         />
@@ -457,7 +511,7 @@ export default function ProgressOverview() {
       {/* 進度總覽（使用列表資料） */}
       <div className="bg-white w-full max-w-5xl rounded-xl shadow-md p-4">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-bold text-teal-600">進度總覽</h2>
+          <h2 ref={progressTableTitleRef} className="text-lg font-bold text-teal-600">進度總覽</h2>
           <div className="w-60">
             <Select
               options={selectOptions.weekOptions}
