@@ -141,6 +141,7 @@ export default function ProgressOverview() {
   const didRestoreUserRef = useRef(false);
   const progressTableTitleRef = useRef<HTMLHeadingElement>(null);
   const didTrackTableViewRef = useRef(false);
+  const lastTrackedProgressViewRef = useRef<string | null>(null);
 
   // 載入狀態
   const [loading, setLoading] = useState(true);
@@ -354,6 +355,20 @@ export default function ProgressOverview() {
       : themeData.weekThemes;
     return { filteredUser, visibleThemes };
   }, [data, selectedUser, selectedWeek, themeData.weekThemes]);
+
+  useEffect(() => {
+    const user = filteredData.filteredUser;
+    if (!selectedUser || !user) return;
+    const viewedUserId = nameToId.get(selectedUser) || '';
+    const viewKey = viewedUserId || selectedUser;
+    if (lastTrackedProgressViewRef.current === viewKey) return;
+
+    lastTrackedProgressViewRef.current = viewKey;
+    captureEvent('progress_viewed', {
+      viewed_user_id: viewedUserId || undefined,
+      viewed_user_name: user.nickname,
+    });
+  }, [filteredData.filteredUser, nameToId, selectedUser]);
 
   /** ========== 表格使用：預先扁平化（週次依 visibleThemes） ========== */
   const tableData = useMemo(() => {
