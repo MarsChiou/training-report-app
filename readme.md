@@ -76,7 +76,7 @@ npm run dev          # http://localhost:5173
 - [ ] 營期時間和名稱更新：更新 `src/pages/utils/campConfig.ts` 的 Config
 - [ ] 假如有新運動類型：更新 `MovementLibrary.tsx` 的 `FALLBACK_TYPE_LABELS`
 - [ ] 更新 Vercel Project Name（主要是為了更新 Domain）
-- [ ] 更新 GAS 指向的 Sheet
+- [ ] -- 更新 GAS 指向的 Sheet  (已不需要)--
 
 ## 更新前檢查
 
