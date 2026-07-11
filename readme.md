@@ -32,7 +32,7 @@
 
 ```bash
 cd training-report-app
-npm install
+npm ci
 npm run dev          # http://localhost:5173
 ```
 
