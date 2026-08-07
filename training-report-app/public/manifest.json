@@ -1,6 +1,6 @@
 {
-  "name": "Jo i 健康隊回報系統",
-  "short_name": "Jo i 健康隊",
+  "name": "JOI 健康隊回報系統",
+  "short_name": "JOI 健康隊",
   "start_url": "/report",
   "display": "standalone",
   "background_color": "#ffffff",
