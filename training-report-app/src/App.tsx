@@ -1,4 +1,5 @@
 // src/App.tsx
+import { useEffect } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import DailyReportForm from './pages/DailyReportForm';
 import ProgressOverview from './pages/ProgressOverview';
@@ -13,7 +14,15 @@ function OffSeasonGate({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const path = location.pathname;
   const isOnOffSeasonPage = path === '/offseason';
-  const bypass = new URLSearchParams(location.search).has('preview'); // 可用 ?preview=1 暫時繞過
+  const previewFromUrl = new URLSearchParams(location.search).has('preview');
+  const previewFromSession = sessionStorage.getItem('previewMode') === 'true';
+  const bypass = previewFromUrl || previewFromSession;
+
+  useEffect(() => {
+    if (previewFromUrl) {
+      sessionStorage.setItem('previewMode', 'true');
+    }
+  }, [previewFromUrl]);
 
   // ✅ 休營期 → 導向 /offseason
   if (isOffSeason() && !isOnOffSeasonPage && !bypass) {

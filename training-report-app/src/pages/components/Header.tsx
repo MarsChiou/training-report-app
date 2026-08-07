@@ -18,7 +18,7 @@ export default function Header() {
       <div className="flex justify-center mb-4">
         <div className="rounded-full p-2 bg-white shadow-xl border-4 border-teal-300">
           <img
-            src="/images/logo.webp"
+            src="/images/logo.png"
             alt="Jo i 健康隊 Logo"
             className="w-20 h-20 rounded-full"
           />
@@ -26,7 +26,6 @@ export default function Header() {
       </div>
 
       {/* 標題區域 */}
-      <h2 className="text-2xl font-bold text-teal-700 leading-snug">Jo i 健康隊</h2>
       <div className="flex justify-center items-center my-2">
         <div className="w-8 h-0.5 bg-teal-400 rounded-full"></div>
       </div>

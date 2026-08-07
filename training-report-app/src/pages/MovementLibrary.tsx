@@ -5,6 +5,7 @@ import MovementCard from './components/MovementCard';
 import Select from 'react-select';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { captureEvent } from '../lib/analytics';
+import { SPORT_TYPE_LABELS } from './utils/sportTypeLabels';
 
 /** ========= 小工具 ========= */
 function isHttpUrl(s?: string) {
@@ -104,17 +105,13 @@ type AwsDetail = {
 type AwsDetailResp = { code: number; message: string; data: AwsDetail };
 
 /** ========= 類型顯示名稱 fallback（AWS 若沒提供對照時用） ========= */
-const FALLBACK_TYPE_LABELS: Record<string, string> = {
-  rock_climb: '攀岩',
-  run: '跑步',
-  mt_climb: '登山',
-  weight_training: '重訓',
-};
+const FALLBACK_TYPE_LABELS = SPORT_TYPE_LABELS;
 
 export default function MovementLibrary() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const initialSearch = searchParams.get('search') || ''; // 可能是 name 或 id（維持相容）
+  const initialSportType = searchParams.get('sport_type') || '';
 
   const AWS_BASE = import.meta.env.VITE_AWS_BASE_URL as string | undefined;
   if (!AWS_BASE) {
@@ -150,8 +147,9 @@ export default function MovementLibrary() {
     return nameById.get(selectedTopicId) || selectedTopicId;
   }, [selectedTopicId, nameById]);
 
-  // 類型切換（依選擇的主題詳情動態決定）
-  const [selectedType, setSelectedType] = useState<string>('All');
+  // 類型切換（依選擇的主題詳情動態決定；空字串表示尚未選擇）
+  const [selectedType, setSelectedType] = useState<string>('');
+  const [cardStackExpanded, setCardStackExpanded] = useState(true);
   const [typeLabels, setTypeLabels] = useState<Record<string, string>>(FALLBACK_TYPE_LABELS);
 
   // 單一主題詳情轉成前端可用的 MovementData[]
@@ -268,9 +266,11 @@ export default function MovementLibrary() {
     async function loadDetail(id: string) {
       if (!id) {
         setMovements([]);
+        setSelectedType('');
         return;
       }
       setLoadingDetail(true);
+      setSelectedType('');
       setError('');
 
       try {
@@ -302,6 +302,7 @@ export default function MovementLibrary() {
       } catch (e: any) {
         if (!canceled) {
           setMovements([]);
+          setSelectedType('');
           setError(e?.message || '詳情載入失敗');
         }
       } finally {
@@ -318,7 +319,15 @@ export default function MovementLibrary() {
     return Array.from(new Set(movements.map(m => m.type)));
   }, [movements]);
 
-  const displayTypes = useMemo(() => ['All', ...allTypes], [allTypes]);
+  /** ====== 從個人進度跳轉時，預選該使用者的運動類型 ====== */
+  useEffect(() => {
+    if (!initialSportType || allTypes.length === 0) return;
+
+    if (!allTypes.includes(initialSportType)) return;
+
+    setSelectedType(initialSportType);
+    setCardStackExpanded(false);
+  }, [allTypes, initialSportType]);
 
   const levelOrder = ['Lv2', 'Lv3', 'Lv4', 'Lv5'];
 
@@ -342,31 +351,17 @@ export default function MovementLibrary() {
     });
   }, [movements, allTypes, levelOrder, selectedTopicName, topicImageSrc]);
 
-  /** ✅ 沒有任何 type 時，提供空態（All + Lv2~Lv5 鎖定卡） */
-  const groupedSections = useMemo(() => {
-    if (allTypes.length === 0) {
-      return [
-        {
-          type: 'All',
-          levels: levelOrder.map(level => ({
-            topic: selectedTopicName,
-            type: 'All',
-            level,
-            description: [],
-            locked: true,
-            imageFile: topicImageSrc || undefined,
-          } as MovementData)),
-        },
-      ];
-    }
-    return groupedByType;
-  }, [allTypes.length, levelOrder, selectedTopicName, topicImageSrc, groupedByType]);
+  const selectedTypeGroup = useMemo(() => {
+    if (!selectedType) return null;
+    return groupedByType.find(group => group.type === selectedType) || null;
+  }, [groupedByType, selectedType]);
 
   /** ====== 主題下拉選單 options ====== */
   const topicOptions = useMemo(
     () => topics.map(t => ({ label: t.name, value: t.id })),
     [topics]
   );
+
   /** ====== 計算 上一個 / 下一個 邏輯 ====== */
   // 1. 找出目前選到的主題在列表中的 index
   const currentTopicIndex = useMemo(() => {
@@ -393,8 +388,7 @@ export default function MovementLibrary() {
       topic_id: selectedTopicId,
       topic_name: selectedTopicName,
       movement_type: type,
-      movement_type_label: type === 'All' ? '全部' : (typeLabels[type] || type),
-      is_all_type: type === 'All',
+      movement_type_label: typeLabels[type] || type,
     });
   };
 
@@ -402,17 +396,119 @@ export default function MovementLibrary() {
   const handleSwitchTopic = (topicId: string) => {
     if (!topicId) {
       setSelectedTopicId('');
+      setSelectedType('');
+      setCardStackExpanded(true);
       navigate('/movement', { replace: true });
       return;
     }
     
     setSelectedTopicId(topicId);
-    setSelectedType('All'); // 切換主題時重置類型篩選
+    setSelectedType(''); // 切換主題時重置類型篩選
+    setCardStackExpanded(true);
     
     const name = nameById.get(topicId) || '';
     const url = name ? `/movement?search=${encodeURIComponent(name)}` : '/movement';
     navigate(url, { replace: true });
   };
+
+  const handleTypeSelected = (nextType: string) => {
+    setSelectedType(nextType);
+    if (!nextType) setCardStackExpanded(true);
+    if (nextType) trackTypeSelected(nextType);
+  };
+
+  const renderSportTypeCardStack = (className = '') => (
+    <div className={`w-full max-w-md ${className}`}>
+      <p className="mb-2 text-sm font-medium text-gray-700">選擇運動類型</p>
+
+      <div
+        aria-hidden={cardStackExpanded || !selectedType}
+        className={`grid transition-all duration-300 ease-out motion-reduce:transition-none ${
+          !cardStackExpanded && selectedType
+            ? 'grid-rows-[1fr] translate-y-0 opacity-100'
+            : 'pointer-events-none grid-rows-[0fr] -translate-y-1 opacity-0'
+        }`}
+      >
+        <div className="min-h-0 overflow-hidden">
+          <div className="relative pb-2">
+            <div
+              aria-hidden="true"
+              className="absolute inset-x-4 bottom-0 top-2 rounded-xl border border-gray-200 bg-gray-100"
+            />
+            <div
+              aria-hidden="true"
+              className="absolute inset-x-2 bottom-1 top-1 rounded-xl border border-teal-200 bg-teal-50"
+            />
+            <button
+              type="button"
+              tabIndex={!cardStackExpanded && selectedType ? 0 : -1}
+              onClick={() => setCardStackExpanded(true)}
+              className="relative z-10 flex min-h-16 w-full items-center justify-between gap-3 rounded-xl border border-teal-500 bg-white px-4 py-3 text-left shadow-sm transition-shadow hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-400 focus-visible:ring-offset-2"
+              aria-expanded={false}
+            >
+              <span>
+                <span className="block text-sm font-semibold text-teal-800">
+                  {typeLabels[selectedType] || selectedType}
+                </span>
+                <span className="mt-0.5 block text-xs text-gray-500">點擊展開其他運動類型</span>
+              </span>
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 20 20"
+                fill="none"
+                className="h-5 w-5 flex-shrink-0 text-teal-600"
+              >
+                <path
+                  d="m5 7.5 5 5 5-5"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div
+        aria-hidden={!cardStackExpanded && !!selectedType}
+        className={`grid transition-all duration-300 ease-out motion-reduce:transition-none ${
+          cardStackExpanded || !selectedType
+            ? 'grid-rows-[1fr] translate-y-0 opacity-100'
+            : 'pointer-events-none grid-rows-[0fr] -translate-y-1 opacity-0'
+        }`}
+      >
+        <div className="min-h-0 overflow-hidden">
+          <div className="grid grid-cols-2 gap-2 p-1" role="group" aria-label="選擇運動類型">
+            {allTypes.map(type => {
+              const isSelected = selectedType === type;
+              return (
+                <button
+                  key={type}
+                  type="button"
+                  tabIndex={!cardStackExpanded && selectedType ? -1 : 0}
+                  aria-pressed={isSelected}
+                  onClick={() => {
+                    if (!isSelected) handleTypeSelected(type);
+                    setCardStackExpanded(false);
+                  }}
+                  className={`flex min-h-16 items-center rounded-xl border px-4 py-3 text-left text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-400 focus-visible:ring-offset-2 ${
+                    isSelected
+                      ? 'border-teal-500 bg-teal-50 text-teal-800 shadow-sm'
+                      : 'border-gray-200 bg-white text-gray-700 shadow-sm hover:-translate-y-0.5 hover:border-teal-300 hover:shadow-md'
+                  }`}
+                >
+                  <span>{typeLabels[type] || type}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   /** ====== UI ====== */
   return (
     <div className="min-h-screen bg-gray-50 pt-8 pb-12 px-4 flex flex-col items-center">
@@ -425,7 +521,7 @@ export default function MovementLibrary() {
           <p className="text-center text-red-500">{error}</p>
         ) : (
           <>
-            {/* Sticky 區：主題與運動類型選擇 */}
+            {/* Sticky 區：主題選擇 */}
             <div className="sticky top-0 z-10 bg-gray-50 pb-4 pt-2 border-b border-gray-300 transition-shadow">
               <label className="block text-sm font-medium text-gray-700 mb-1">選擇主題</label>
               <div className="flex items-center gap-2 mb-4">
@@ -491,29 +587,6 @@ export default function MovementLibrary() {
                   </svg>
                 </button>
               </div>
-
-              {/* 只有選擇了主題時才出現運動類型選單 */}
-              {selectedTopicId && (
-                <div className="flex flex-wrap gap-3 pt-2">
-                  {displayTypes.map((type) => (
-                    <button
-                      key={type}
-                      onClick={() => {
-                        setSelectedType(type);
-                        trackTypeSelected(type);
-                      }}
-                      className={`px-4 py-1 rounded-full text-sm font-medium border transition ${
-                        selectedType === type
-                          ? 'bg-teal-500 text-white border-teal-500'
-                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'
-                      }`}
-                      disabled={type !== 'All' && !allTypes.includes(type)}
-                    >
-                      {type === 'All' ? '全部' : (typeLabels[type] || type)}
-                    </button>
-                  ))}
-                </div>
-              )}
             </div>
             {/* Sticky 區結束 */}
 
@@ -544,37 +617,37 @@ export default function MovementLibrary() {
                           ? <>第 {detailCache.get(selectedTopicId)!.week_number} 週</>
                           : null}
                         {detailCache.get(selectedTopicId)?.body_part
-                          ? <>　|　{detailCache.get(selectedTopicId)!.body_part}</>
+                          ? <> | {detailCache.get(selectedTopicId)!.body_part}</>
                           : null}
                       </div>
                     )}
+
+                    {!loadingDetail && allTypes.length > 0 && renderSportTypeCardStack('mt-4 md:hidden')}
                   </div>
 
                   {/* 動作卡片列表 */}
                   <div className="md:w-3/5 w-full">
+                    {!loadingDetail && allTypes.length > 0 && renderSportTypeCardStack('hidden md:block mb-4')}
                     {loadingDetail ? (
                       <p className="text-center text-gray-500">內容載入中...</p>
-                    ) : (
-                      groupedSections
-                        .filter(group => selectedType === 'All' || group.type === selectedType)
-                        .map(group => (
-                          <div key={group.type} className="mb-8">
-                            <h2 className="text-lg font-semibold text-gray-700 mb-2">
-                              {typeLabels[group.type] }進階課表
-                            </h2>
-
-                            {/* 若為空態（只有 All 且原始 types 為 0），加一句提示 */}
-                            
-                            
-
-                            <div className="grid grid-cols-1 gap-4">
-                              {group.levels.map(m => (
-                                <MovementCard key={`${group.type}-${m.level}`} data={m} />
-                              ))}
-                            </div>
-                          </div>
-                        ))
-                    )}
+                    ) : allTypes.length === 0 ? (
+                      <p className="text-center text-gray-500">此主題目前沒有可用的運動類型。</p>
+                    ) : !selectedType ? (
+                      <p className="text-center text-gray-500 mt-4">
+                        請先選擇運動類型，即可查看對應的進階課表。
+                      </p>
+                    ) : selectedTypeGroup ? (
+                      <div className="mb-8">
+                        <h2 className="text-lg font-semibold text-gray-700 mb-2">
+                          {typeLabels[selectedTypeGroup.type]}進階課表
+                        </h2>
+                        <div className="grid grid-cols-1 gap-4">
+                          {selectedTypeGroup.levels.map(m => (
+                            <MovementCard key={`${selectedTypeGroup.type}-${m.level}`} data={m} />
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                 </div>
               </div>

@@ -10,7 +10,7 @@ export default function OffSeasonPage() {
         <div className="flex justify-center mb-8">
           <img
             src="images/360_rest.png"
-            alt="Jo i 健康隊 Off-season"
+            alt="JO I 健康隊 Off-season"
             className="w-56 h-56 object-contain drop-shadow-md"
           />
         </div>
@@ -59,7 +59,7 @@ export default function OffSeasonPage() {
 
         {/* Footer note */}
         <p className="mt-8 text-sm text-gray-500">
-          🌊 Jo i 健康隊感謝你的參與，持續探索、保持覺察，我們下期再見！
+          🌊 JOI 健康隊感謝你的參與，持續探索、保持覺察，我們下期再見！
         </p>
       </div>
     </div>

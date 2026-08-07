@@ -8,8 +8,6 @@ import useRoster from '../hooks/useRoster';
 import {
   CAMP_START,
   CAMP_END,
-  formatDateLocal,
-  parseLocalYMD,
   campDayNumber,
   totalCampDays,
   todayYMD,
@@ -93,8 +91,6 @@ export default function DiaryOverview() {
 
   // UI 控制
   const [keyword, setKeyword] = useState('');
-  const [onlyHasDiary, setOnlyHasDiary] = useState(true);
-  const [sortDesc, setSortDesc] = useState(true);
   const lastTrackedDiaryViewRef = useRef<string | null>(null);
 
   const trackDiaryUserManualSelected = (
@@ -232,17 +228,6 @@ export default function DiaryOverview() {
     };
   }, [userId, nameOptions]);
 
-  /** 產出營期間所有日期（for 顯示所有天） */
-  const allCampDates = useMemo(() => {
-    const start = parseLocalYMD(CAMP_START);
-    const end = parseLocalYMD(CAMP_END);
-    const days: string[] = [];
-    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-      days.push(formatDateLocal(d));
-    }
-    return days;
-  }, []);
-
   const totalDays = totalCampDays(); // ✅ 共用總天數
   const todayStr = todayYMD();
 
@@ -250,33 +235,13 @@ export default function DiaryOverview() {
   const daysElapsed =
     todayStr < CAMP_START ? 0 : todayStr > CAMP_END ? totalDays : campDayNumber(todayStr);
 
-  /** 合併空白日（onlyHasDiary=false 時顯示） */
-  const mergedByDate = useMemo(() => {
-    if (onlyHasDiary) return entries;
-    const map = new Map(entries.map(e => [e.date, e] as const));
-    return allCampDates.map(date => {
-      const existed = map.get(date);
-      if (existed) return existed;
-      return {
-        date,
-        dayNumber: campDayNumber(date),
-        diaryText: '',
-        bodyFatigue: null,
-        brainFatigue: null,
-      } as DiaryEntry;
-    });
-  }, [entries, onlyHasDiary, allCampDates]);
-
-  /** 關鍵字過濾 + 排序 */
+  /** 關鍵字過濾，固定依日期由新到舊排列 */
   const visibleEntries = useMemo(() => {
     const kw = keyword.trim();
-    let list = mergedByDate.filter(e => (kw ? e.diaryText.includes(kw) : true));
-    list = list.sort((a, b) => {
-      const cmp = a.date.localeCompare(b.date);
-      return sortDesc ? -cmp : cmp;
-    });
-    return list;
-  }, [mergedByDate, keyword, sortDesc]);
+    return entries
+      .filter(e => (kw ? e.diaryText.includes(kw) : true))
+      .sort((a, b) => b.date.localeCompare(a.date));
+  }, [entries, keyword]);
 
   const selectedOption = nameOptions.find(o => o.value === userId) || null;
   const diaryCount = entries.filter(e => e.diaryText.trim().length > 0).length;
@@ -288,7 +253,7 @@ export default function DiaryOverview() {
       <div className="w-full max-w-3xl">
         {/* 控制列 */}
         <div className="bg-white rounded-2xl shadow-md p-4 mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm text-gray-600 mb-1">選擇隊員</label>
               <Select
@@ -324,37 +289,6 @@ export default function DiaryOverview() {
               </div>
             </div>
 
-            <div className="flex items-end justify-between md:justify-end gap-4">
-              <label className="inline-flex items-center text-sm text-gray-700">
-                <input
-                  type="checkbox"
-                  className="mr-2"
-                  checked={onlyHasDiary}
-                  onChange={e => {
-                    const enabled = e.target.checked;
-                    setOnlyHasDiary(enabled);
-                    captureEvent('diary_only_has_diary_toggled', { enabled });
-                  }}
-                />
-                只看有日記
-              </label>
-              <button
-                onClick={() => {
-                  setSortDesc(v => {
-                    const next = !v;
-                    captureEvent('diary_sort_toggled', {
-                      sort_desc: next,
-                      sort_order: next ? 'desc' : 'asc',
-                    });
-                    return next;
-                  });
-                }}
-                className="px-3 py-2 text-sm rounded-lg border border-gray-300 bg-gray-50 hover:bg-gray-100"
-                title="切換日期排序"
-              >
-                {sortDesc ? '日期：新→舊' : '日期：舊→新'}
-              </button>
-            </div>
           </div>
 
           {userId && (

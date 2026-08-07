@@ -6,6 +6,7 @@ import Select from 'react-select';
 import Header from './components/Header';
 import { getLevelBackgroundStyle } from '../pages/utils/levelStyle.ts';
 import { progressMovementMap } from '../pages/utils/progressMovementMap';
+import { SPORT_TYPE_LABELS } from './utils/sportTypeLabels';
 
 // ✅ 統一改用 campConfig
 import {
@@ -16,11 +17,14 @@ import {
 import { captureEvent, trackUniqueUserSelection } from '../lib/analytics';
 
 const PROGRESS_SESSION_USERS_KEY = 'analytics:progress:selectedUserIds';
+const LAST_PROGRESS_USER_KEY = 'progress:lastUserName';
+const LAST_PROGRESS_SPORT_TYPE_KEY = 'progress:lastSportType';
 
 /** ====================== 既有型別（UI 內部用） ====================== */
 interface UserProgress {
   nickname: string; // 顯示名（= AWS 的 name）
   point?: number;
+  sportType?: string;
   rotation: string; // 身體旋轉習慣（AWS: body_rotation；暫無則 '-'）
   progress: {
     [theme: string]: {
@@ -45,6 +49,7 @@ type AwsUser = {
   id: string;
   name: string;
   point?: number;
+  sport_type?: string;
   body_rotation?: string;
   training_progress: Array<{
     movement_id: string;   // e.g. "P01".."P24"
@@ -100,6 +105,7 @@ function awsUserToUserProgress(u: AwsUser): UserProgress {
   return {
     nickname: u.name,
     point: u.point ?? undefined,
+    sportType: u.sport_type,
     rotation: u.body_rotation ?? '-',
     progress: progressByWeek
   };
@@ -150,6 +156,9 @@ export default function ProgressOverview() {
   // 個人區塊（單筆 API 回來覆蓋顯示；表格仍用 data）
   const [personalUser, setPersonalUser] = useState<UserProgress | null>(null);
   const [personalLoading, setPersonalLoading] = useState(false);
+  const [storedSportType, setStoredSportType] = useState(
+    () => localStorage.getItem(LAST_PROGRESS_SPORT_TYPE_KEY) || ''
+  );
 
   // 為了打單筆 API：name -> id 映射（只在 AWS 路線才會有）
   const [nameToId, setNameToId] = useState<Map<string, string>>(new Map());
@@ -292,8 +301,7 @@ export default function ProgressOverview() {
     });
   }, [nameToId]);
 
-  /** ========== 記住上次查過的人（只自動恢復一次；清除時刪記錄） ========== */
-  const LAST_PROGRESS_USER_KEY = 'progress:lastUserName';
+  /** ========== 記住上次查過的人與運動類型（只自動恢復一次；清除時刪記錄） ========== */
   useEffect(() => {
     if (data.length === 0) return;
 
@@ -307,12 +315,26 @@ export default function ProgressOverview() {
       } else {
         // 使用者主動清除了選擇 → 把記錄清掉，保持為空
         localStorage.removeItem(LAST_PROGRESS_USER_KEY);
+        localStorage.removeItem(LAST_PROGRESS_SPORT_TYPE_KEY);
+        setStoredSportType('');
       }
     } else {
-      // 有選到人就更新記錄
+      const previousUser = localStorage.getItem(LAST_PROGRESS_USER_KEY);
+      const selectedUserData = personalUser?.nickname === selectedUser
+        ? personalUser
+        : data.find(user => user.nickname === selectedUser);
+
+      // 有選到人就更新記錄；運動類型以單筆 API 資料優先
       localStorage.setItem(LAST_PROGRESS_USER_KEY, selectedUser);
+      if (selectedUserData?.sportType) {
+        localStorage.setItem(LAST_PROGRESS_SPORT_TYPE_KEY, selectedUserData.sportType);
+        setStoredSportType(selectedUserData.sportType);
+      } else if (previousUser !== selectedUser) {
+        localStorage.removeItem(LAST_PROGRESS_SPORT_TYPE_KEY);
+        setStoredSportType('');
+      }
     }
-  }, [data, selectedUser]);
+  }, [data, personalUser, selectedUser]);
 
   /** ========== 總表曝光：進度總覽標題進入螢幕上方 25% 以內，每頁只送一次 ========== */
   useEffect(() => {
@@ -389,9 +411,18 @@ export default function ProgressOverview() {
   const renderPersonalProgress = () => {
     const user = personalUser || filteredData.filteredUser;
     if (!user) return null;
+    const savedSportType = localStorage.getItem(LAST_PROGRESS_USER_KEY) === user.nickname
+      ? storedSportType
+      : '';
+    const sportType = user.sportType || savedSportType;
 
     return (
       <div className="mt-4 text-sm text-gray-700">
+        <p className="mb-2 font-semibold">
+          運動類型：{personalLoading
+            ? '載入中...'
+            : (sportType ? (SPORT_TYPE_LABELS[sportType] || sportType) : '-')}
+        </p>
         {user.point !== undefined && (
           <p className="mb-2 font-semibold">訓練點數：{user.point} 點</p>
         )}
@@ -416,15 +447,19 @@ export default function ProgressOverview() {
                   const mv = movementMap.get(`${weekNo}-${action}`);
                   const displayTitle = mv?.displayTitle || action;
                   const searchParam = mv?.searchParam || '';
+                  const sportTypeParam = sportType
+                    ? `&sport_type=${encodeURIComponent(sportType)}`
+                    : '';
 
                   return (
                     <Link
                       key={`${themeKey}-${action}`}
-                      to={`/movement?search=${searchParam}`}
+                      to={`/movement?search=${searchParam}${sportTypeParam}`}
                       onClick={() => {
                         captureEvent('progress_movement_link_clicked', {
                           selected_user_name: user.nickname,
                           selected_user_id: nameToId.get(user.nickname) || undefined,
+                          sport_type: sportType || undefined,
                           week_number: weekNo,
                           action,
                           level: lv,
