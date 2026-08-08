@@ -136,15 +136,95 @@ function currentWeekNumberWithinCamp(): number | null {
   return Math.min(8, campWeekNumber(today));
 }
 
+function ProgressOverviewSkeleton({ showPersonal }: { showPersonal: boolean }) {
+  return (
+    <div
+      className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8 flex flex-col items-center justify-start"
+      aria-label="正在載入進度資料"
+      aria-busy="true"
+    >
+      <Header />
+
+      <div className="bg-white w-full max-w-md rounded-xl shadow-md p-4 mb-6 animate-pulse">
+        <div className="h-4 w-24 rounded bg-gray-200 mb-2" />
+        <div className="h-[38px] w-full rounded border border-gray-200 bg-gray-100" />
+
+        {showPersonal && (
+          <div className="mt-4">
+            <div className="h-4 w-32 rounded bg-gray-200 mb-3" />
+            <div className="h-4 w-28 rounded bg-gray-200 mb-4" />
+            {Array.from({ length: 8 }, (_, weekIndex) => (
+              <div key={weekIndex} className="mb-3">
+                <div className="h-4 w-28 rounded bg-teal-100 mb-2" />
+                <div className="flex gap-2">
+                  {Array.from({ length: 3 }, (_, actionIndex) => (
+                    <div
+                      key={actionIndex}
+                      className="h-6 min-w-[72px] rounded-full bg-gray-200"
+                    />
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="bg-white w-full max-w-5xl rounded-xl shadow-md p-4 animate-pulse">
+        <div className="flex items-center justify-between mb-4">
+          <div className="h-6 w-20 rounded bg-teal-100" />
+          <div className="h-[38px] w-60 rounded border border-gray-200 bg-gray-100" />
+        </div>
+
+        <div className="overflow-hidden border border-gray-200">
+          <div className="grid grid-cols-[6rem_5rem_repeat(3,minmax(6rem,1fr))] bg-gray-100">
+            {Array.from({ length: 5 }, (_, index) => (
+              <div key={index} className="h-8 border-r border-gray-200 p-2">
+                <div className="h-3 w-3/4 mx-auto rounded bg-gray-200" />
+              </div>
+            ))}
+          </div>
+          <div className="grid grid-cols-[6rem_5rem_repeat(3,minmax(6rem,1fr))] bg-gray-50">
+            {Array.from({ length: 5 }, (_, index) => (
+              <div key={index} className="h-8 border-r border-t border-gray-200 p-2">
+                <div className="h-3 w-1/2 mx-auto rounded bg-gray-200" />
+              </div>
+            ))}
+          </div>
+          {Array.from({ length: 7 }, (_, rowIndex) => (
+            <div
+              key={rowIndex}
+              className="grid grid-cols-[6rem_5rem_repeat(3,minmax(6rem,1fr))]"
+            >
+              {Array.from({ length: 5 }, (_, cellIndex) => (
+                <div
+                  key={cellIndex}
+                  className="h-9 border-r border-t border-gray-200 p-2"
+                >
+                  <div className="h-3 w-2/3 mx-auto rounded bg-gray-200" />
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
+      <span className="sr-only">載入中...</span>
+    </div>
+  );
+}
+
 /** ====================== 主元件 ====================== */
 export default function ProgressOverview() {
   // 列表資料（表格使用）
   const [data, setData] = useState<UserProgress[]>([]);
   // 選擇狀態
-  const [selectedUser, setSelectedUser] = useState<string | null>(null);
+  const initialStoredUserRef = useRef(localStorage.getItem(LAST_PROGRESS_USER_KEY));
+  const [selectedUser, setSelectedUser] = useState<string | null>(
+    initialStoredUserRef.current
+  );
   const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
   const didAutoPickWeekRef = useRef(false);
-  const didRestoreUserRef = useRef(false);
+  const didRestoreUserRef = useRef(Boolean(initialStoredUserRef.current));
   const progressTableTitleRef = useRef<HTMLHeadingElement>(null);
   const didTrackTableViewRef = useRef(false);
   const lastTrackedProgressViewRef = useRef<string | null>(null);
@@ -304,6 +384,14 @@ export default function ProgressOverview() {
   /** ========== 記住上次查過的人與運動類型（只自動恢復一次；清除時刪記錄） ========== */
   useEffect(() => {
     if (data.length === 0) return;
+
+    if (selectedUser && !data.some(user => user.nickname === selectedUser)) {
+      setSelectedUser(null);
+      localStorage.removeItem(LAST_PROGRESS_USER_KEY);
+      localStorage.removeItem(LAST_PROGRESS_SPORT_TYPE_KEY);
+      setStoredSportType('');
+      return;
+    }
 
     if (!selectedUser) {
       if (!didRestoreUserRef.current) {
@@ -520,12 +608,7 @@ export default function ProgressOverview() {
 
   /** ========== 畫面渲染 ========== */
   if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8 flex flex-col items-center justify-start">
-        <Header />
-        <p className="text-center text-gray-500 mt-4">載入中...</p>
-      </div>
-    );
+    return <ProgressOverviewSkeleton showPersonal={Boolean(initialStoredUserRef.current)} />;
   }
 
   if (errorMsg) {

@@ -1,5 +1,5 @@
 // pages/MovementLibrary.tsx
-import { useEffect, useMemo, useState, useRef } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useState, useRef } from 'react';
 import Header from './components/Header';
 import MovementCard from './components/MovementCard';
 import Select from 'react-select';
@@ -50,9 +50,9 @@ function LazyImage({ src, alt }: { src: string; alt: string }) {
   }, [effectiveSrc]);
 
   return (
-    <div className="relative w-full max-w-md">
+    <div className="relative aspect-[1300/1808] w-full max-w-md overflow-hidden rounded-lg bg-white shadow-md">
       {!loaded && !errorFallback && (
-        <div className="absolute inset-0 flex items-center justify-center bg-gray-100 rounded-lg animate-pulse">
+        <div className="absolute inset-0 flex items-center justify-center bg-gray-100 animate-pulse">
           <span className="text-xs text-gray-400">圖片載入中...</span>
         </div>
       )}
@@ -66,7 +66,7 @@ function LazyImage({ src, alt }: { src: string; alt: string }) {
         decoding="async"
         onLoad={() => setLoaded(true)}
         onError={() => { setErrorFallback(true); setLoaded(true); }}
-        className={`rounded-lg shadow-md transition-opacity duration-300 ease-in ${
+        className={`absolute inset-0 h-full w-full object-contain transition-opacity duration-300 ease-in ${
           loaded ? 'opacity-100' : 'opacity-0'
         }`}
       />
@@ -111,7 +111,7 @@ export default function MovementLibrary() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const initialSearch = searchParams.get('search') || ''; // 可能是 name 或 id（維持相容）
-  const initialSportType = searchParams.get('sport_type') || '';
+  const urlSportType = searchParams.get('sport_type') || '';
 
   const AWS_BASE = import.meta.env.VITE_AWS_BASE_URL as string | undefined;
   if (!AWS_BASE) {
@@ -124,6 +124,7 @@ export default function MovementLibrary() {
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [error, setError] = useState('');
   const [topicImageSrc, setTopicImageSrc] = useState('/theme-images/default.png');
+  const detailRequestIdRef = useRef(0);
 
   // 列表資料（主題清單）
   const [topics, setTopics] = useState<AwsListItem[]>([]);
@@ -149,8 +150,14 @@ export default function MovementLibrary() {
 
   // 類型切換（依選擇的主題詳情動態決定；空字串表示尚未選擇）
   const [selectedType, setSelectedType] = useState<string>('');
+  const [preferredType, setPreferredType] = useState<string>(urlSportType);
   const [cardStackExpanded, setCardStackExpanded] = useState(true);
   const [typeLabels, setTypeLabels] = useState<Record<string, string>>(FALLBACK_TYPE_LABELS);
+
+  // URL 是偏好類型的來源；也支援重新整理與瀏覽器上一頁/下一頁。
+  useEffect(() => {
+    setPreferredType(urlSportType);
+  }, [urlSportType]);
 
   // 單一主題詳情轉成前端可用的 MovementData[]
   const [movements, setMovements] = useState<MovementData[]>([]);
@@ -261,12 +268,18 @@ export default function MovementLibrary() {
   }
 
   /** ====== 抓單一主題詳情 ====== */
-  useEffect(() => {
+  useLayoutEffect(() => {
     let canceled = false;
+    const controller = new AbortController();
+    const requestId = ++detailRequestIdRef.current;
+    const isCurrentRequest = () =>
+      !canceled && detailRequestIdRef.current === requestId;
+
     async function loadDetail(id: string) {
       if (!id) {
         setMovements([]);
         setSelectedType('');
+        setLoadingDetail(false);
         return;
       }
       setLoadingDetail(true);
@@ -277,7 +290,7 @@ export default function MovementLibrary() {
         // 先看有沒有快取
         const cached = detailCache.get(id);
         if (cached) {
-          if (!canceled) {
+          if (isCurrentRequest()) {
             setMovements(adaptDetail(cached));
             setLoadingDetail(false);
           }
@@ -285,13 +298,16 @@ export default function MovementLibrary() {
         }
 
         if (!AWS_BASE) throw new Error('未設定 VITE_AWS_BASE_URL');
-        const res = await fetch(`${AWS_BASE}/movements/${encodeURIComponent(id)}`);
+        const res = await fetch(
+          `${AWS_BASE}/movements/${encodeURIComponent(id)}`,
+          { signal: controller.signal }
+        );
         const ctype = res.headers.get('content-type') || '';
         if (!ctype.includes('application/json')) throw new Error('詳情 API 回傳非 JSON');
         const json = (await res.json()) as AwsDetailResp;
         if (json.code !== 200 || !json.data) throw new Error(json.message || '詳情 API 失敗');
 
-        if (!canceled) {
+        if (isCurrentRequest()) {
           setDetailCache(prev => {
             const next = new Map(prev);
             next.set(id, json.data);
@@ -300,17 +316,21 @@ export default function MovementLibrary() {
           setMovements(adaptDetail(json.data));
         }
       } catch (e: any) {
-        if (!canceled) {
+        if (e?.name === 'AbortError') return;
+        if (isCurrentRequest()) {
           setMovements([]);
           setSelectedType('');
           setError(e?.message || '詳情載入失敗');
         }
       } finally {
-        if (!canceled) setLoadingDetail(false);
+        if (isCurrentRequest()) setLoadingDetail(false);
       }
     }
     loadDetail(selectedTopicId);
-    return () => { canceled = true; };
+    return () => {
+      canceled = true;
+      controller.abort();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedTopicId, AWS_BASE]); // adaptDetail/ detailCache 由於是 setState 內部使用，這裡不把它們當依賴
 
@@ -319,15 +339,19 @@ export default function MovementLibrary() {
     return Array.from(new Set(movements.map(m => m.type)));
   }, [movements]);
 
-  /** ====== 從個人進度跳轉時，預選該使用者的運動類型 ====== */
-  useEffect(() => {
-    if (!initialSportType || allTypes.length === 0) return;
+  /** ====== 依 URL / 使用者偏好預選目前主題支援的運動類型 ====== */
+  useLayoutEffect(() => {
+    if (allTypes.length === 0) return;
 
-    if (!allTypes.includes(initialSportType)) return;
+    if (preferredType && allTypes.includes(preferredType)) {
+      setSelectedType(preferredType);
+      setCardStackExpanded(false);
+      return;
+    }
 
-    setSelectedType(initialSportType);
-    setCardStackExpanded(false);
-  }, [allTypes, initialSportType]);
+    setSelectedType('');
+    setCardStackExpanded(true);
+  }, [allTypes, preferredType]);
 
   const levelOrder = ['Lv2', 'Lv3', 'Lv4', 'Lv5'];
 
@@ -397,6 +421,7 @@ export default function MovementLibrary() {
     if (!topicId) {
       setSelectedTopicId('');
       setSelectedType('');
+      setPreferredType('');
       setCardStackExpanded(true);
       navigate('/movement', { replace: true });
       return;
@@ -407,14 +432,28 @@ export default function MovementLibrary() {
     setCardStackExpanded(true);
     
     const name = nameById.get(topicId) || '';
-    const url = name ? `/movement?search=${encodeURIComponent(name)}` : '/movement';
+    const sportTypeParam = preferredType
+      ? `&sport_type=${encodeURIComponent(preferredType)}`
+      : '';
+    const url = name
+      ? `/movement?search=${encodeURIComponent(name)}${sportTypeParam}`
+      : '/movement';
     navigate(url, { replace: true });
   };
 
   const handleTypeSelected = (nextType: string) => {
     setSelectedType(nextType);
+    setPreferredType(nextType);
     if (!nextType) setCardStackExpanded(true);
     if (nextType) trackTypeSelected(nextType);
+
+    const name = nameById.get(selectedTopicId) || '';
+    const searchParam = name ? `search=${encodeURIComponent(name)}` : '';
+    const sportTypeParam = nextType
+      ? `sport_type=${encodeURIComponent(nextType)}`
+      : '';
+    const query = [searchParam, sportTypeParam].filter(Boolean).join('&');
+    navigate(query ? `/movement?${query}` : '/movement', { replace: true });
   };
 
   const renderSportTypeCardStack = (className = '') => (
