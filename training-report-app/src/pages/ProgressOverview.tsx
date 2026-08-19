@@ -426,6 +426,8 @@ export default function ProgressOverview() {
 
   /** ========== 總表曝光：進度總覽標題進入螢幕上方 25% 以內，每頁只送一次 ========== */
   useEffect(() => {
+    if (loading) return;
+
     const onScroll = () => {
       if (didTrackTableViewRef.current) return;
       const el = progressTableTitleRef.current;
@@ -442,7 +444,7 @@ export default function ProgressOverview() {
     window.addEventListener('scroll', onScroll, { passive: true });
     onScroll();
     return () => window.removeEventListener('scroll', onScroll);
-  }, [selectedUser]);
+  }, [loading, selectedUser]);
 
   /** ========== 下拉選項（姓名用顯示名；週次用主題字串，但 label 顯示 body_part） ========== */
   const selectOptions = useMemo(() => {
@@ -543,6 +545,7 @@ export default function ProgressOverview() {
                     <Link
                       key={`${themeKey}-${action}`}
                       to={`/movement?search=${searchParam}${sportTypeParam}`}
+                      state={{ movement_source: 'progress_link' }}
                       onClick={() => {
                         captureEvent('progress_movement_link_clicked', {
                           selected_user_name: user.nickname,

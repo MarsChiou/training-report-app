@@ -396,23 +396,38 @@ export default function MovementLibrary() {
   const prevTopic = topics[currentTopicIndex - 1];
   const nextTopic = topics[currentTopicIndex + 1];
 
-  const trackTopicNavigation = (
-    direction: 'previous' | 'next',
+  const trackTopicChanged = (
+    action: 'selected' | 'previous' | 'next' | 'cleared',
     targetTopicId: string
   ) => {
-    captureEvent('movement_topic_navigated', {
-      direction,
-      from_topic: selectedTopicId,
-      to_topic: targetTopicId,
+    captureEvent('movement_topic_changed', {
+      action,
+      from_topic: selectedTopicId || undefined,
+      from_topic_name: selectedTopicName || undefined,
+      to_topic: targetTopicId || undefined,
+      to_topic_name: targetTopicId
+        ? (nameById.get(targetTopicId) || targetTopicId)
+        : undefined,
+      sport_type: preferredType || undefined,
+      sport_type_label: preferredType
+        ? (typeLabels[preferredType] || preferredType)
+        : undefined,
     });
   };
 
+  const handleTopicSelect = (topicId: string) => {
+    if (topicId === selectedTopicId) return;
+
+    trackTopicChanged(topicId ? 'selected' : 'cleared', topicId);
+    handleSwitchTopic(topicId);
+  };
+
   const trackTypeSelected = (type: string) => {
-    captureEvent('movement_type_selected', {
+    captureEvent('sport_type_selected', {
       topic_id: selectedTopicId,
       topic_name: selectedTopicName,
-      movement_type: type,
-      movement_type_label: typeLabels[type] || type,
+      sport_type: type,
+      sport_type_label: typeLabels[type] || type,
     });
   };
 
@@ -568,7 +583,7 @@ export default function MovementLibrary() {
                 <button
                   onClick={() => {
                     if (prevTopic) {
-                      trackTopicNavigation('previous', prevTopic.id);
+                      trackTopicChanged('previous', prevTopic.id);
                       handleSwitchTopic(prevTopic.id);
                     }
                   }}
@@ -595,7 +610,7 @@ export default function MovementLibrary() {
                         ? { label: selectedTopicName, value: selectedTopicId }
                         : null
                     }
-                    onChange={(opt) => handleSwitchTopic(opt?.value || '')}
+                    onChange={(opt) => handleTopicSelect(opt?.value || '')}
                     placeholder="請輸入或選擇主題"
                     isSearchable={false} // 既然有按鈕輔助，這裡維持 false 沒問題
                     isClearable
@@ -608,7 +623,7 @@ export default function MovementLibrary() {
                 <button
                   onClick={() => {
                     if (nextTopic) {
-                      trackTopicNavigation('next', nextTopic.id);
+                      trackTopicChanged('next', nextTopic.id);
                       handleSwitchTopic(nextTopic.id);
                     }
                   }}
