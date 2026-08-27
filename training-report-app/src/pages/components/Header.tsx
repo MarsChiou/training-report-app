@@ -19,7 +19,7 @@ export default function Header() {
         <div className="rounded-full p-2 bg-white shadow-xl border-4 border-teal-300">
           <img
             src="/images/logo.png"
-            alt="Jo i 健康隊 Logo"
+            alt="JOI 健康隊 Logo"
             className="w-20 h-20 rounded-full"
           />
         </div>

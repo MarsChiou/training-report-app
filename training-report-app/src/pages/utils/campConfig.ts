@@ -2,7 +2,7 @@ export type CampPhase = 'active' | 'offseason';
 export const CAMP_PHASE: CampPhase = 'offseason';
 
 export function isOffSeason() {
-  return CAMP_PHASE === 'offseason';
+  return CAMP_PHASE === 'active';
 }
 
 /** 統一管理本期營隊設定（靜態） */
