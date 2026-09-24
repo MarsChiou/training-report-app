@@ -84,6 +84,7 @@ export default function DailyReportForm() {
   const [brainFatigue, setBrainFatigue] = useState<number | null>(null); // 0~10；null 代表未填
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
   const [successText, setSuccessText] = useState('');
   const { options: nameOptions, loading: rosterLoading } = useRoster();
 
@@ -189,6 +190,11 @@ export default function DailyReportForm() {
 
   const validationMessage = useMemo(() => getValidationMessage(), [getValidationMessage]);
 
+  /** 開始準備下一筆回報時，清除上一筆的成功狀態 */
+  const markAsEditing = () => {
+    setSubmitted(false);
+  };
+
   /** 成功後重置 */
   const resetAfterSuccess = () => {
     setTrainingDone(false);
@@ -201,8 +207,10 @@ export default function DailyReportForm() {
 
   /** 送出 */
   const handleSubmit = async () => {
+    setSubmitted(false);
     const errorMessage = getValidationMessage();
     if (errorMessage) {
+      setHasAttemptedSubmit(true);
       captureEvent('daily_report_submit_failed', {
         failure_stage: 'validation',
         error_type: 'validation',
@@ -212,6 +220,7 @@ export default function DailyReportForm() {
       showErrorToast('回報失敗：' + errorMessage);
       return;
     }
+    setHasAttemptedSubmit(false);
     // 選擇目標：優先用 AWS，否則回退 GAS
     const useAWS = !!AWS_BASE_URL;
     if (!useAWS && !POST_API_URL) {
@@ -368,6 +377,7 @@ export default function DailyReportForm() {
             value={selectedOption}
             onChange={(selected) => {
               const id = selected ? selected.value : '';
+              markAsEditing();
               setUserId(id);
               writeLastReportUserId(id, CAMP_START);
             }}
@@ -435,7 +445,10 @@ export default function DailyReportForm() {
             )}
             selected={parseLocalYMD(selectedDate)}
             onChange={(date: Date | null) => {
-              if (date) setSelectedDate(formatDateLocal(date));
+              if (date) {
+                markAsEditing();
+                setSelectedDate(formatDateLocal(date));
+              }
             }}
             minDate={parseLocalYMD(CAMP_START)}
             maxDate={parseLocalYMD(today)}
@@ -462,7 +475,10 @@ export default function DailyReportForm() {
                   type="checkbox"
                   className="mr-2"
                   checked={trainingDone}
-                  onChange={(e) => setTrainingDone(e.target.checked)}
+                  onChange={(e) => {
+                    markAsEditing();
+                    setTrainingDone(e.target.checked);
+                  }}
                 />
                 今天有完成訓練
               </label>
@@ -496,7 +512,10 @@ export default function DailyReportForm() {
                       max="10"
                       step="1"
                       value={bodyFatigue ?? 0}
-                      onChange={(e) => setBodyFatigue(Number(e.target.value))}
+                      onChange={(e) => {
+                        markAsEditing();
+                        setBodyFatigue(Number(e.target.value));
+                      }}
                       className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
                       style={{
                         background: bodyFatigue !== null 
@@ -514,7 +533,10 @@ export default function DailyReportForm() {
                   {bodyFatigue !== null && (
                     <button
                       type="button"
-                      onClick={() => setBodyFatigue(null)}
+                      onClick={() => {
+                        markAsEditing();
+                        setBodyFatigue(null);
+                      }}
                       className="mt-2 text-xs text-gray-500 hover:text-teal-600 underline"
                     >
                       清除選擇
@@ -547,7 +569,10 @@ export default function DailyReportForm() {
                       max="10"
                       step="1"
                       value={brainFatigue ?? 0}
-                      onChange={(e) => setBrainFatigue(Number(e.target.value))}
+                      onChange={(e) => {
+                        markAsEditing();
+                        setBrainFatigue(Number(e.target.value));
+                      }}
                       className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
                       style={{
                         background: brainFatigue !== null 
@@ -565,7 +590,10 @@ export default function DailyReportForm() {
                   {brainFatigue !== null && (
                     <button
                       type="button"
-                      onClick={() => setBrainFatigue(null)}
+                      onClick={() => {
+                        markAsEditing();
+                        setBrainFatigue(null);
+                      }}
                       className="mt-2 text-xs text-gray-500 hover:text-teal-600 underline"
                     >
                       清除選擇
@@ -591,7 +619,10 @@ export default function DailyReportForm() {
               type="checkbox"
               className="mr-2"
               checked={diaryDone}
-              onChange={(e) => setDiaryDone(e.target.checked)}
+              onChange={(e) => {
+                markAsEditing();
+                setDiaryDone(e.target.checked);
+              }}
             />
             今天有寫覺察日記
           </label>
@@ -607,7 +638,10 @@ export default function DailyReportForm() {
             rows={6}
             value={diaryText}
             maxLength={150}
-            onChange={(e) => setDiaryText(e.target.value)}
+            onChange={(e) => {
+              markAsEditing();
+              setDiaryText(e.target.value);
+            }}
             placeholder="記錄您今天的感受、訓練中的困惑、身體的不適感、或者任何訓練心得"
             className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-400 focus:border-transparent text-sm transition duration-150 resize-none"
           />
@@ -627,7 +661,9 @@ export default function DailyReportForm() {
         </button>
 
         {/* 驗證提示 */}
-        {validationMessage && <p className="text-sm text-teal-500 mt-2 text-center">{validationMessage}</p>}
+        {hasAttemptedSubmit && validationMessage && (
+          <p className="text-sm text-teal-500 mt-2 text-center">{validationMessage}</p>
+        )}
 
         {/* 成功提示 */}
         {submitted && (
